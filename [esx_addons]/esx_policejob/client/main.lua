@@ -203,6 +203,8 @@ function OpenCloakroomMenu()
 	end)
 end
 
+local ox_inventory = exports.ox_inventory
+
 function OpenArmoryMenu(station)
 	local elements = {
 		{label = _U('buy_weapons'), value = 'buy_weapons'}
@@ -222,17 +224,10 @@ function OpenArmoryMenu(station)
 		align    = 'top-left',
 		elements = elements
 	}, function(data, menu)
-
-		if data.current.value == 'get_weapon' then
-			OpenGetWeaponMenu()
-		elseif data.current.value == 'put_weapon' then
-			OpenPutWeaponMenu()
-		elseif data.current.value == 'buy_weapons' then
-			OpenBuyWeaponsMenu()
-		elseif data.current.value == 'put_stock' then
-			OpenPutStocksMenu()
+		if data.current.value == 'put_stock' then
+			ox_inventory:openInventory('policeevidence')
 		elseif data.current.value == 'get_stock' then
-			OpenGetStocksMenu()
+			ox_inventory:openInventory('stash', 'society_police')
 		end
 
 	end, function(data, menu)
@@ -834,95 +829,6 @@ function OpenWeaponComponentShop(components, weaponName, parentShop)
 		end
 	end, function(data, menu)
 		menu.close()
-	end)
-end
-
-function OpenGetStocksMenu()
-	ESX.TriggerServerCallback('esx_policejob:getStockItems', function(items)
-		local elements = {}
-
-		for i=1, #items, 1 do
-			table.insert(elements, {
-				label = 'x' .. items[i].count .. ' ' .. items[i].label,
-				value = items[i].name
-			})
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'stocks_menu', {
-			title    = _U('police_stock'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-			local itemName = data.current.value
-
-			ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'stocks_menu_get_item_count', {
-				title = _U('quantity')
-			}, function(data2, menu2)
-				local count = tonumber(data2.value)
-
-				if not count then
-					ESX.ShowNotification(_U('quantity_invalid'))
-				else
-					menu2.close()
-					menu.close()
-					TriggerServerEvent('esx_policejob:getStockItem', itemName, count)
-
-					Citizen.Wait(300)
-					OpenGetStocksMenu()
-				end
-			end, function(data2, menu2)
-				menu2.close()
-			end)
-		end, function(data, menu)
-			menu.close()
-		end)
-	end)
-end
-
-function OpenPutStocksMenu()
-	ESX.TriggerServerCallback('esx_policejob:getPlayerInventory', function(inventory)
-		local elements = {}
-
-		for i=1, #inventory.items, 1 do
-			local item = inventory.items[i]
-
-			if item.count > 0 then
-				table.insert(elements, {
-					label = item.label .. ' x' .. item.count,
-					type = 'item_standard',
-					value = item.name
-				})
-			end
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'stocks_menu', {
-			title    = _U('inventory'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-			local itemName = data.current.value
-
-			ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'stocks_menu_put_item_count', {
-				title = _U('quantity')
-			}, function(data2, menu2)
-				local count = tonumber(data2.value)
-
-				if not count then
-					ESX.ShowNotification(_U('quantity_invalid'))
-				else
-					menu2.close()
-					menu.close()
-					TriggerServerEvent('esx_policejob:putStockItems', itemName, count)
-
-					Citizen.Wait(300)
-					OpenPutStocksMenu()
-				end
-			end, function(data2, menu2)
-				menu2.close()
-			end)
-		end, function(data, menu)
-			menu.close()
-		end)
 	end)
 end
 
