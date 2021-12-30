@@ -3,7 +3,7 @@ local function setPlayerStatus(xPlayer, data)
 
 	xPlayer.set('status', data)
 	ESX.Players[xPlayer.source] = data
-	TriggerClientEvent('esx_status:load', playerId, data)
+	TriggerClientEvent('esx_status:load', xPlayer.source, data)
 end
 
 AddEventHandler('onResourceStart', function(resourceName)
