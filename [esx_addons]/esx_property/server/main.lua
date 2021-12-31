@@ -7,7 +7,7 @@ function GetProperty(name)
 end
 
 function SetPropertyOwned(name, price, rented, owner)
-	MySQL.Async.execute('INSERT INTO owned_properties (name, price, rented, owner) VALUES (@name, @price, @rented, @owner)', {
+	MySQL.query('INSERT INTO owned_properties (name, price, rented, owner) VALUES (@name, @price, @rented, @owner)', {
 		['@name']   = name,
 		['@price']  = price,
 		['@rented'] = (rented and 1 or 0),
@@ -28,12 +28,11 @@ function SetPropertyOwned(name, price, rented, owner)
 end
 
 function RemoveOwnedProperty(name, owner, noPay)
-	MySQL.Async.fetchAll('SELECT id, rented, price FROM owned_properties WHERE name = @name AND owner = @owner', {
-		['@name']  = name,
-		['@owner'] = owner
+	MySQL.query('SELECT id, rented, price FROM owned_properties WHERE name = ? AND owner = ?', {
+		name, owner
 	}, function(result)
 		if result[1] then
-			MySQL.Async.execute('DELETE FROM owned_properties WHERE id = @id', {
+			MySQL.query('DELETE FROM owned_properties WHERE id = @id', {
 				['@id'] = result[1].id
 			}, function(rowsChanged)
 				local xPlayer = ESX.GetPlayerFromIdentifier(owner)
@@ -53,82 +52,102 @@ function RemoveOwnedProperty(name, owner, noPay)
 					end
 				end
 			end)
+			MySQL.query('DELETE FROM ox_inventory WHERE owner = ? AND name = ?', {
+				owner, ('%s%s'):format(owner, name)
+			})
 		end
 	end)
 end
 
-MySQL.ready(function()
-	Citizen.Wait(1500)
+local ox_inventory = exports.ox_inventory
 
-	MySQL.Async.fetchAll('SELECT * FROM `properties`', {}, function(properties)
+MySQL.query('SELECT * FROM `properties`', {}, function(properties)
+	while GetResourceState('ox_inventory') ~= 'started' do Wait(0) end
+	for i=1, #properties, 1 do
+		local property = properties[i]
 
-		for i=1, #properties, 1 do
-			local entering  = nil
-			local exit      = nil
-			local inside    = nil
-			local outside   = nil
-			local isSingle  = nil
-			local isRoom    = nil
-			local isGateway = nil
-			local roomMenu  = nil
+		ox_inventory:RegisterStash(property.name, property.label, 50, 100000, true)
 
-			if properties[i].entering then
-				entering = json.decode(properties[i].entering)
-			end
+		local entering  = nil
+		local exit      = nil
+		local inside    = nil
+		local outside   = nil
+		local isSingle  = nil
+		local isRoom    = nil
+		local isGateway = nil
+		local roomMenu  = nil
 
-			if properties[i].exit then
-				exit = json.decode(properties[i].exit)
-			end
-
-			if properties[i].inside then
-				inside = json.decode(properties[i].inside)
-			end
-
-			if properties[i].outside then
-				outside = json.decode(properties[i].outside)
-			end
-
-			if properties[i].is_single == 0 then
-				isSingle = false
-			else
-				isSingle = true
-			end
-
-			if properties[i].is_room == 0 then
-				isRoom = false
-			else
-				isRoom = true
-			end
-
-			if properties[i].is_gateway == 0 then
-				isGateway = false
-			else
-				isGateway = true
-			end
-
-			if properties[i].room_menu then
-				roomMenu = json.decode(properties[i].room_menu)
-			end
-
-			table.insert(Config.Properties, {
-				name      = properties[i].name,
-				label     = properties[i].label,
-				entering  = entering,
-				exit      = exit,
-				inside    = inside,
-				outside   = outside,
-				ipls      = json.decode(properties[i].ipls),
-				gateway   = properties[i].gateway,
-				isSingle  = isSingle,
-				isRoom    = isRoom,
-				isGateway = isGateway,
-				roomMenu  = roomMenu,
-				price     = properties[i].price
-			})
+		if properties[i].entering then
+			entering = json.decode(property.entering)
+			entering = vec3(entering.x, entering.y, entering.z)
 		end
 
-		TriggerClientEvent('esx_property:sendProperties', -1, Config.Properties)
-	end)
+		if property.exit then
+			exit = json.decode(property.exit)
+			exit = vec3(exit.x, exit.y, exit.z)
+		end
+
+		if property.inside then
+			inside = json.decode(property.inside)
+			inside = vec3(inside.x, inside.y, inside.z)
+		end
+
+		if property.outside then
+			outside = json.decode(property.outside)
+			outside = vec3(outside.x, outside.y, outside.z)
+		end
+
+		if property.is_single == 0 then
+			isSingle = false
+		else
+			isSingle = true
+		end
+
+		if property.is_room == 0 then
+			isRoom = false
+		else
+			isRoom = true
+		end
+
+		if property.is_gateway == 0 then
+			isGateway = false
+		else
+			isGateway = true
+		end
+
+		if property.room_menu then
+			roomMenu = json.decode(property.room_menu)
+			roomMenu = vec3(roomMenu.x, roomMenu.y, roomMenu.z)
+		end
+
+		table.insert(Config.Properties, {
+			name      = property.name,
+			label     = property.label,
+			entering  = entering,
+			exit      = exit,
+			inside    = inside,
+			outside   = outside,
+			ipls      = json.decode(property.ipls),
+			gateway   = property.gateway,
+			isSingle  = isSingle,
+			isRoom    = isRoom,
+			isGateway = isGateway,
+			roomMenu  = roomMenu,
+			price     = property.price
+		})
+	end
+
+	TriggerClientEvent('esx_property:sendProperties', -1, Config.Properties)
+end)
+
+AddEventHandler('onServerResourceStart', function(resourceName)
+	if resourceName == 'ox_inventory' or resourceName == GetCurrentResourceName then
+		while GetResourceState('ox_inventory') ~= 'started' do Wait(50) end
+	  	for i=1, #Config.Properties do
+			local property = Config.Properties[i]
+			ox_inventory:RegisterStash(property.name, property.label, 50, 100000, true)
+		end
+	end
 end)
 
 ESX.RegisterServerCallback('esx_property:getProperties', function(source, cb)
@@ -136,7 +155,7 @@ ESX.RegisterServerCallback('esx_property:getProperties', function(source, cb)
 end)
 
 AddEventHandler('esx_ownedproperty:getOwnedProperties', function(cb)
-	MySQL.Async.fetchAll('SELECT * FROM owned_properties', {}, function(result)
+	MySQL.query('SELECT * FROM owned_properties', {}, function(result)
 		local properties = {}
 
 		for i=1, #result, 1 do
@@ -198,7 +217,7 @@ RegisterNetEvent('esx_property:saveLastProperty')
 AddEventHandler('esx_property:saveLastProperty', function(property)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.execute('UPDATE users SET last_property = @last_property WHERE identifier = @identifier', {
+	MySQL.query('UPDATE users SET last_property = @last_property WHERE identifier = @identifier', {
 		['@last_property'] = property,
 		['@identifier']    = xPlayer.identifier
 	})
@@ -208,114 +227,15 @@ RegisterNetEvent('esx_property:deleteLastProperty')
 AddEventHandler('esx_property:deleteLastProperty', function()
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.execute('UPDATE users SET last_property = NULL WHERE identifier = @identifier', {
+	MySQL.query('UPDATE users SET last_property = NULL WHERE identifier = @identifier', {
 		['@identifier'] = xPlayer.identifier
 	})
-end)
-
-RegisterNetEvent('esx_property:getItem')
-AddEventHandler('esx_property:getItem', function(owner, type, item, count)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local xPlayerOwner = ESX.GetPlayerFromIdentifier(owner)
-
-	if type == 'item_standard' then
-		TriggerEvent('esx_addoninventory:getInventory', 'property', xPlayerOwner.identifier, function(inventory)
-			local inventoryItem = inventory.getItem(item)
-
-			-- is there enough in the property?
-			if count > 0 and inventoryItem.count >= count then
-				-- can the player carry the said amount of x item?
-				if xPlayer.canCarryItem(item, count) then
-					inventory.removeItem(item, count)
-					xPlayer.addInventoryItem(item, count)
-					xPlayer.showNotification(_U('have_withdrawn', count, inventoryItem.label))
-				else
-					xPlayer.showNotification(_U('player_cannot_hold'))
-				end
-			else
-				xPlayer.showNotification(_U('not_enough_in_property'))
-			end
-		end)
-	elseif type == 'item_account' then
-		TriggerEvent('esx_addonaccount:getAccount', 'property_' .. item, xPlayerOwner.identifier, function(account)
-			if account.money >= count then
-				account.removeMoney(count)
-				xPlayer.addAccountMoney(item, count)
-			else
-				xPlayer.showNotification(_U('amount_invalid'))
-			end
-		end)
-	elseif type == 'item_weapon' then
-		TriggerEvent('esx_datastore:getDataStore', 'property', xPlayerOwner.identifier, function(store)
-			local storeWeapons = store.get('weapons') or {}
-			local weaponName   = nil
-			local ammo         = nil
-
-			for i=1, #storeWeapons, 1 do
-				if storeWeapons[i].name == item then
-					weaponName = storeWeapons[i].name
-					ammo       = storeWeapons[i].ammo
-
-					table.remove(storeWeapons, i)
-					break
-				end
-			end
-
-			store.set('weapons', storeWeapons)
-			xPlayer.addWeapon(weaponName, ammo)
-		end)
-	end
-end)
-
-RegisterNetEvent('esx_property:putItem')
-AddEventHandler('esx_property:putItem', function(owner, type, item, count)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local xPlayerOwner = ESX.GetPlayerFromIdentifier(owner)
-
-	if type == 'item_standard' then
-		local playerItemCount = xPlayer.getInventoryItem(item).count
-
-		if playerItemCount >= count and count > 0 then
-			TriggerEvent('esx_addoninventory:getInventory', 'property', xPlayerOwner.identifier, function(inventory)
-				xPlayer.removeInventoryItem(item, count)
-				inventory.addItem(item, count)
-				xPlayer.showNotification(_U('have_deposited', count, inventory.getItem(item).label))
-			end)
-		else
-			xPlayer.showNotification(_U('invalid_quantity'))
-		end
-	elseif type == 'item_account' then
-		if xPlayer.getAccount(item).money >= count and count > 0 then
-			xPlayer.removeAccountMoney(item, count)
-
-			TriggerEvent('esx_addonaccount:getAccount', 'property_' .. item, xPlayerOwner.identifier, function(account)
-				account.addMoney(count)
-			end)
-		else
-			xPlayer.showNotification(_U('amount_invalid'))
-		end
-	elseif type == 'item_weapon' then
-		if xPlayer.hasWeapon(item) then
-			xPlayer.removeWeapon(item)
-
-			TriggerEvent('esx_datastore:getDataStore', 'property', xPlayerOwner.identifier, function(store)
-				local storeWeapons = store.get('weapons') or {}
-
-				table.insert(storeWeapons, {
-					name = item,
-					ammo = count
-				})
-
-				store.set('weapons', storeWeapons)
-			end)
-		end
-	end
 end)
 
 ESX.RegisterServerCallback('esx_property:getOwnedProperties', function(source, cb)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.fetchAll('SELECT name, rented FROM owned_properties WHERE owner = @owner', {
+	MySQL.query('SELECT name, rented FROM owned_properties WHERE owner = @owner', {
 		['@owner'] = xPlayer.identifier
 	}, function(result)
 		cb(result)
@@ -325,48 +245,11 @@ end)
 ESX.RegisterServerCallback('esx_property:getLastProperty', function(source, cb)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.fetchAll('SELECT last_property FROM users WHERE identifier = @identifier', {
+	MySQL.query('SELECT last_property FROM users WHERE identifier = @identifier', {
 		['@identifier'] = xPlayer.identifier
 	}, function(users)
 		cb(users[1].last_property)
 	end)
-end)
-
-ESX.RegisterServerCallback('esx_property:getPropertyInventory', function(source, cb, owner)
-	local xPlayer    = ESX.GetPlayerFromIdentifier(owner)
-	local blackMoney = 0
-	local items      = {}
-	local weapons    = {}
-
-	TriggerEvent('esx_addonaccount:getAccount', 'property_black_money', xPlayer.identifier, function(account)
-		blackMoney = account.money
-	end)
-
-	TriggerEvent('esx_addoninventory:getInventory', 'property', xPlayer.identifier, function(inventory)
-		items = inventory.items
-	end)
-
-	TriggerEvent('esx_datastore:getDataStore', 'property', xPlayer.identifier, function(store)
-		weapons = store.get('weapons') or {}
-	end)
-
-	cb({
-		blackMoney = blackMoney,
-		items      = items,
-		weapons    = weapons
-	})
-end)
-
-ESX.RegisterServerCallback('esx_property:getPlayerInventory', function(source, cb)
-	local xPlayer    = ESX.GetPlayerFromId(source)
-	local blackMoney = xPlayer.getAccount('black_money').money
-	local items      = xPlayer.inventory
-
-	cb({
-		blackMoney = blackMoney,
-		items      = items,
-		weapons    = xPlayer.getLoadout()
-	})
 end)
 
 ESX.RegisterServerCallback('esx_property:getPlayerDressing', function(source, cb)
@@ -410,9 +293,8 @@ function payRent(d, h, m)
 	local timeStart = os.clock()
 	print('[esx_property] [^2INFO^7] Paying rent cron job started')
 
-	MySQL.Async.fetchAll('SELECT * FROM owned_properties WHERE rented = 1', {}, function(result)
-		for k, v in ipairs(result) do
-			
+	MySQL.query('SELECT * FROM owned_properties WHERE rented = 1', {}, function(result)
+		for _,v in ipairs(result) do
 			local xPlayer = ESX.GetPlayerFromIdentifier(v.owner)
 
 			if xPlayer then
@@ -424,7 +306,7 @@ function payRent(d, h, m)
 					RemoveOwnedProperty(v.name, v.owner, true)
 				end
 			else
-				MySQL.Async.fetchScalar('SELECT accounts FROM users WHERE identifier = @identifier', {
+				MySQL.scalar('SELECT accounts FROM users WHERE identifier = @identifier', {
 					['@identifier'] = v.owner
 				}, function(accounts)
 					if accounts then
@@ -434,7 +316,7 @@ function payRent(d, h, m)
 							if playerAccounts.bank >= v.price then
 								playerAccounts.bank = playerAccounts.bank - v.price
 
-								MySQL.Async.execute('UPDATE users SET accounts = @accounts WHERE identifier = @identifier', {
+								MySQL.query('UPDATE users SET accounts = @accounts WHERE identifier = @identifier', {
 									['@identifier'] = v.owner,
 									['@accounts'] = json.encode(playerAccounts)
 								})

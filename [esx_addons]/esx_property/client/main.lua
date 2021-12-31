@@ -400,9 +400,6 @@ function OpenRoomMenu(property, owner)
 		table.insert(elements, {label = _U('remove_cloth'), value = 'remove_cloth'})
 	end
 
-	table.insert(elements, {label = _U('remove_object'),  value = 'room_inventory'})
-	table.insert(elements, {label = _U('deposit_object'), value = 'player_inventory'})
-
 	ESX.UI.Menu.CloseAll()
 
 	ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'room', {
@@ -489,11 +486,6 @@ function OpenRoomMenu(property, owner)
 					menu2.close()
 				end)
 			end)
-
-		elseif data.current.value == 'room_inventory' then
-			OpenRoomInventoryMenu(property, owner)
-		elseif data.current.value == 'player_inventory' then
-			OpenPlayerInventoryMenu(property, owner)
 		end
 
 	end, function(data, menu)
@@ -502,154 +494,6 @@ function OpenRoomMenu(property, owner)
 		CurrentAction     = 'room_menu'
 		CurrentActionMsg  = _U('press_to_menu')
 		CurrentActionData = {property = property, owner = owner}
-	end)
-end
-
-function OpenRoomInventoryMenu(property, owner)
-	ESX.TriggerServerCallback('esx_property:getPropertyInventory', function(inventory)
-		local elements = {}
-
-		if inventory.blackMoney > 0 then
-			table.insert(elements, {
-				label = _U('dirty_money', ESX.Math.GroupDigits(inventory.blackMoney)),
-				type = 'item_account',
-				value = 'black_money'
-			})
-		end
-
-		for i=1, #inventory.items, 1 do
-			local item = inventory.items[i]
-
-			if item.count > 0 then
-				table.insert(elements, {
-					label = item.label .. ' x' .. item.count,
-					type = 'item_standard',
-					value = item.name
-				})
-			end
-		end
-
-		for i=1, #inventory.weapons, 1 do
-			local weapon = inventory.weapons[i]
-
-			table.insert(elements, {
-				label = ESX.GetWeaponLabel(weapon.name) .. ' [' .. weapon.ammo .. ']',
-				type  = 'item_weapon',
-				value = weapon.name,
-				index = i
-			})
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'room_inventory', {
-			title    = property.label .. ' - ' .. _U('inventory'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-
-			if data.current.type == 'item_weapon' then
-				menu.close()
-
-				TriggerServerEvent('esx_property:getItem', owner, data.current.type, data.current.value, data.current.index)
-				ESX.SetTimeout(300, function()
-					OpenRoomInventoryMenu(property, owner)
-				end)
-			else
-				ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'get_item_count', {
-					title = _U('amount')
-				}, function(data2, menu)
-
-					local quantity = tonumber(data2.value)
-					if quantity == nil then
-						ESX.ShowNotification(_U('amount_invalid'))
-					else
-						menu.close()
-
-						TriggerServerEvent('esx_property:getItem', owner, data.current.type, data.current.value, quantity)
-						ESX.SetTimeout(300, function()
-							OpenRoomInventoryMenu(property, owner)
-						end)
-					end
-				end, function(data2,menu)
-					menu.close()
-				end)
-			end
-		end, function(data, menu)
-			menu.close()
-		end)
-	end, owner)
-end
-
-function OpenPlayerInventoryMenu(property, owner)
-	ESX.TriggerServerCallback('esx_property:getPlayerInventory', function(inventory)
-		local elements = {}
-
-		if inventory.blackMoney > 0 then
-			table.insert(elements, {
-				label = _U('dirty_money', ESX.Math.GroupDigits(inventory.blackMoney)),
-				type  = 'item_account',
-				value = 'black_money'
-			})
-		end
-
-		for i=1, #inventory.items, 1 do
-			local item = inventory.items[i]
-
-			if item.count > 0 then
-				table.insert(elements, {
-					label = item.label .. ' x' .. item.count,
-					type  = 'item_standard',
-					value = item.name
-				})
-			end
-		end
-
-		for i=1, #inventory.weapons, 1 do
-			local weapon = inventory.weapons[i]
-
-			table.insert(elements, {
-				label = weapon.label .. ' [' .. weapon.ammo .. ']',
-				type  = 'item_weapon',
-				value = weapon.name,
-				ammo  = weapon.ammo
-			})
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'player_inventory', {
-			title    = property.label .. ' - ' .. _U('inventory'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-
-			if data.current.type == 'item_weapon' then
-				menu.close()
-				TriggerServerEvent('esx_property:putItem', owner, data.current.type, data.current.value, data.current.ammo)
-
-				ESX.SetTimeout(300, function()
-					OpenPlayerInventoryMenu(property, owner)
-				end)
-			else
-				ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'put_item_count', {
-					title = _U('amount')
-				}, function(data2, menu2)
-					local quantity = tonumber(data2.value)
-
-					if quantity == nil then
-						ESX.ShowNotification(_U('amount_invalid'))
-					else
-						menu2.close()
-
-						TriggerServerEvent('esx_property:putItem', owner, data.current.type, data.current.value, tonumber(data2.value))
-						ESX.SetTimeout(300, function()
-							OpenPlayerInventoryMenu(property, owner)
-						end)
-					end
-				end, function(data2, menu2)
-					menu2.close()
-				end)
-			end
-		end, function(data, menu)
-			menu.close()
-		end)
 	end)
 end
 
@@ -741,6 +585,8 @@ AddEventHandler('instance:onPlayerLeft', function(instance, player)
 	end
 end)
 
+local ox_inventory = exports.ox_inventory
+
 AddEventHandler('esx_property:hasEnteredMarker', function(name, part)
 	local property = GetProperty(name)
 
@@ -762,13 +608,39 @@ AddEventHandler('esx_property:hasEnteredMarker', function(name, part)
 		CurrentAction     = 'room_menu'
 		CurrentActionMsg  = _U('press_to_menu')
 		CurrentActionData = {property = property, owner = CurrentPropertyOwner}
+		ox_inventory:setStashTarget(property.name, property.owner)
 	end
 end)
 
 AddEventHandler('esx_property:hasExitedMarker', function(name, part)
 	ESX.UI.Menu.CloseAll()
 	CurrentAction = nil
+	ox_inventory:setStashTarget(nil)
 end)
+
+-- Key controls
+local function KeyControls()
+	ESX.ShowHelpNotification(CurrentActionMsg)
+
+	if IsControlJustReleased(0, 38) then
+		if CurrentAction == 'property_menu' then
+			OpenPropertyMenu(CurrentActionData.property)
+		elseif CurrentAction == 'gateway_menu' then
+			if Config.EnablePlayerManagement then
+				OpenGatewayOwnedPropertiesMenu(CurrentActionData.property)
+			else
+				OpenGatewayMenu(CurrentActionData.property)
+			end
+		elseif CurrentAction == 'room_menu' then
+			OpenRoomMenu(CurrentActionData.property, CurrentActionData.owner)
+		elseif CurrentAction == 'room_exit' then
+			TriggerEvent('instance:leave')
+		end
+
+		CurrentAction = nil
+	end
+end
+
 
 -- Enter / Exit marker events & Draw markers
 Citizen.CreateThread(function()
@@ -779,12 +651,16 @@ Citizen.CreateThread(function()
 		local isInMarker, letSleep = false, true
 		local currentProperty, currentPart
 
+		if CurrentAction then
+			KeyControls()
+		end
+
 		for i=1, #Config.Properties, 1 do
 			local property = Config.Properties[i]
 
 			-- Entering
 			if property.entering and not property.disabled then
-				local distance = GetDistanceBetweenCoords(coords, property.entering.x, property.entering.y, property.entering.z, true)
+				local distance = #(coords - property.entering)
 
 				if distance < Config.DrawDistance then
 					DrawMarker(Config.MarkerType, property.entering.x, property.entering.y, property.entering.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Config.MarkerSize.x, Config.MarkerSize.y, Config.MarkerSize.z, Config.MarkerColor.r, Config.MarkerColor.g, Config.MarkerColor.b, 100, false, true, 2, false, nil, nil, false)
@@ -803,7 +679,7 @@ Citizen.CreateThread(function()
 
 			-- Exit
 			if property.exit and not property.disabled then
-				local distance = GetDistanceBetweenCoords(coords, property.exit.x, property.exit.y, property.exit.z, true)
+				local distance = #(coords - property.exit)
 
 				if distance < Config.DrawDistance then
 					DrawMarker(Config.MarkerType, property.exit.x, property.exit.y, property.exit.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Config.MarkerSize.x, Config.MarkerSize.y, Config.MarkerSize.z, Config.MarkerColor.r, Config.MarkerColor.g, Config.MarkerColor.b, 100, false, true, 2, false, nil, nil, false)
@@ -819,7 +695,7 @@ Citizen.CreateThread(function()
 
 			-- Room menu
 			if property.roomMenu and hasChest and not property.disabled then
-				local distance = GetDistanceBetweenCoords(coords, property.roomMenu.x, property.roomMenu.y, property.roomMenu.z, true)
+				local distance = #(coords - property.roomMenu)
 
 				if distance < Config.DrawDistance then
 					DrawMarker(Config.MarkerType, property.roomMenu.x, property.roomMenu.y, property.roomMenu.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Config.MarkerSize.x, Config.MarkerSize.y, Config.MarkerSize.z, Config.RoomMenuMarkerColor.r, Config.RoomMenuMarkerColor.g, Config.RoomMenuMarkerColor.b, 100, false, true, 2, false, nil, nil, false)
@@ -848,37 +724,6 @@ Citizen.CreateThread(function()
 		end
 
 		if letSleep then
-			Citizen.Wait(500)
-		end
-	end
-end)
-
--- Key controls
-Citizen.CreateThread(function()
-	while true do
-		Citizen.Wait(0)
-
-		if CurrentAction then
-			ESX.ShowHelpNotification(CurrentActionMsg)
-
-			if IsControlJustReleased(0, 38) then
-				if CurrentAction == 'property_menu' then
-					OpenPropertyMenu(CurrentActionData.property)
-				elseif CurrentAction == 'gateway_menu' then
-					if Config.EnablePlayerManagement then
-						OpenGatewayOwnedPropertiesMenu(CurrentActionData.property)
-					else
-						OpenGatewayMenu(CurrentActionData.property)
-					end
-				elseif CurrentAction == 'room_menu' then
-					OpenRoomMenu(CurrentActionData.property, CurrentActionData.owner)
-				elseif CurrentAction == 'room_exit' then
-					TriggerEvent('instance:leave')
-				end
-
-				CurrentAction = nil
-			end
-		else
 			Citizen.Wait(500)
 		end
 	end
