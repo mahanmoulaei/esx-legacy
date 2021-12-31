@@ -40,7 +40,6 @@ client_scripts {
 }
 
 dependencies {
-	'async',
 	'es_extended',
 	'instance',
 	'cron',

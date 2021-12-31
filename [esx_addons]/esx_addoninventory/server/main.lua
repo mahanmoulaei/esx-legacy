@@ -1,8 +1,7 @@
-local GetCurrentResourceName = GetCurrentResourceName()
 local ox_inventory = exports.ox_inventory
 
 AddEventHandler('onServerResourceStart', function(resourceName)
-	if resourceName == 'ox_inventory' or resourceName == GetCurrentResourceName then
+	if resourceName == 'ox_inventory' or resourceName == GetCurrentResourceName() then
 		local stashes = MySQL.query.await('SELECT * FROM addon_inventory')
 
 		for i=1, #stashes do

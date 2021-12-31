@@ -407,54 +407,49 @@ AddEventHandler('esx_property:removeOutfit', function(label)
 end)
 
 function payRent(d, h, m)
-	local tasks, timeStart = {}, os.clock()
+	local timeStart = os.clock()
 	print('[esx_property] [^2INFO^7] Paying rent cron job started')
 
 	MySQL.Async.fetchAll('SELECT * FROM owned_properties WHERE rented = 1', {}, function(result)
-		for k,v in ipairs(result) do
-			table.insert(tasks, function(cb)
-				local xPlayer = ESX.GetPlayerFromIdentifier(v.owner)
+		for k, v in ipairs(result) do
+			
+			local xPlayer = ESX.GetPlayerFromIdentifier(v.owner)
 
-				if xPlayer then
-					if xPlayer.getAccount('bank').money >= v.price then
-						xPlayer.removeAccountMoney('bank', v.price)
-						xPlayer.showNotification(_U('paid_rent', ESX.Math.GroupDigits(v.price), GetProperty(v.name).label))
-					else
-						xPlayer.showNotification(_U('paid_rent_evicted', GetProperty(v.name).label, ESX.Math.GroupDigits(v.price)))
-						RemoveOwnedProperty(v.name, v.owner, true)
-					end
+			if xPlayer then
+				if xPlayer.getAccount('bank').money >= v.price then
+					xPlayer.removeAccountMoney('bank', v.price)
+					xPlayer.showNotification(_U('paid_rent', ESX.Math.GroupDigits(v.price), GetProperty(v.name).label))
 				else
-					MySQL.Async.fetchScalar('SELECT accounts FROM users WHERE identifier = @identifier', {
-						['@identifier'] = v.owner
-					}, function(accounts)
-						if accounts then
-							local playerAccounts = json.decode(accounts)
+					xPlayer.showNotification(_U('paid_rent_evicted', GetProperty(v.name).label, ESX.Math.GroupDigits(v.price)))
+					RemoveOwnedProperty(v.name, v.owner, true)
+				end
+			else
+				MySQL.Async.fetchScalar('SELECT accounts FROM users WHERE identifier = @identifier', {
+					['@identifier'] = v.owner
+				}, function(accounts)
+					if accounts then
+						local playerAccounts = json.decode(accounts)
 
-							if playerAccounts and playerAccounts.bank then
-								if playerAccounts.bank >= v.price then
-									playerAccounts.bank = playerAccounts.bank - v.price
+						if playerAccounts and playerAccounts.bank then
+							if playerAccounts.bank >= v.price then
+								playerAccounts.bank = playerAccounts.bank - v.price
 
-									MySQL.Async.execute('UPDATE users SET accounts = @accounts WHERE identifier = @identifier', {
-										['@identifier'] = v.owner,
-										['@accounts'] = json.encode(playerAccounts)
-									})
-								else
-									RemoveOwnedProperty(v.name, v.owner, true)
-								end
+								MySQL.Async.execute('UPDATE users SET accounts = @accounts WHERE identifier = @identifier', {
+									['@identifier'] = v.owner,
+									['@accounts'] = json.encode(playerAccounts)
+								})
+							else
+								RemoveOwnedProperty(v.name, v.owner, true)
 							end
 						end
-					end)
-				end
-
-				TriggerEvent('esx_addonaccount:getSharedAccount', 'society_realestateagent', function(account)
-					account.addMoney(v.price)
+					end
 				end)
+			end
 
-				cb()
+			TriggerEvent('esx_addonaccount:getSharedAccount', 'society_realestateagent', function(account)
+				account.addMoney(v.price)
 			end)
 		end
-
-		Async.parallelLimit(tasks, 5, function(results) end)
 
 		local elapsedTime = os.clock() - timeStart
 		print(('[esx_property] [^2INFO^7] Paying rent cron job took %s seconds'):format(elapsedTime))
