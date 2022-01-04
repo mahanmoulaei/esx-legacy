@@ -427,65 +427,93 @@ AddEventHandler('esx_vehicleshop:setJobVehicleState', function(plate, state)
 	end)
 end)
 
-function UnrentVehicleAsync(identifier, plate)
-	MySQL.Async.execute('DELETE FROM rented_vehicles WHERE identifier = @identifier AND plate = @plate', {
-		['@identifier'] = identifier,
-		['@plate'] = plate
-	})
-end
-
-function PayRent(d, h, m)
-	local tasks, timeStart = {}, os.clock()
+function PayRent()
+	local timeStart = os.clock()
 	print('[esx_vehicleshop] [^2INFO^7] Paying rent cron job started')
 
-	MySQL.Async.fetchAll('SELECT owner, rent_price, plate FROM rented_vehicles', {}, function(result)
-		for k,v in ipairs(result) do
-			table.insert(tasks, function(cb)
-				local xPlayer = ESX.GetPlayerFromIdentifier(v.owner)
+	MySQL.query('SELECT rented_vehicles.owner, rented_vehicles.rent_price, rented_vehicles.plate, users.accounts FROM rented_vehicles LEFT JOIN users ON rented_vehicles.owner = users.identifier', {},
+	function(rentals)
+		local owners = {}
+		for i = 1, #rentals do
+			local rental = rentals[i]
+			if not owners[rental.owner] then
+				owners[rental.owner] = {rental}
+			else
+				owners[rental.owner][#owners[rental.owner] + 1] = rental
+			end
+		end
 
-				if xPlayer then
-					if xPlayer.getAccount('bank').money >= v.rent_price then
-						xPlayer.removeAccountMoney('bank', v.rent_price)
-						xPlayer.showNotification(_U('paid_rental', ESX.Math.GroupDigits(v.rent_price), v.plate))
-					else
-						xPlayer.showNotification(_U('paid_rental_evicted', ESX.Math.GroupDigits(v.rent_price), v.plate))
-						UnrentVehicleAsync(v.owner, v.plate)
-					end
+		local total = 0
+		local unrentals = {}
+		local users = {}
+		for k, v in pairs(owners) do
+			local sum = 0
+			for i = 1, #v do
+				sum += v[i].rent_price
+			end
+			local xPlayer = ESX.GetPlayerFromIdentifier(k)
+
+			if xPlayer then
+				local bank = xPlayer.getAccount('bank').money
+
+				if bank >= sum and #v > 1 then
+					total += sum
+					xPlayer.removeAccountMoney('bank', sum)
+					xPlayer.showNotification(('You have paid ~g~$%s~s~ for all of your rentals'):format(ESX.Math.GroupDigits(sum)))
 				else
-					MySQL.Async.fetchScalar('SELECT accounts FROM users WHERE identifier = @identifier', {
-						['@identifier'] = v.owner
-					}, function(accounts)
-						if accounts then
-							local playerAccounts = json.decode(accounts)
-
-							if playerAccounts and playerAccounts.bank then
-								if playerAccounts.bank >= v.price then
-									playerAccounts.bank = playerAccounts.bank - v.price
-
-									MySQL.Async.execute('UPDATE users SET accounts = @accounts WHERE identifier = @identifier', {
-										['@identifier'] = v.owner,
-										['@accounts'] = json.encode(playerAccounts)
-									})
-								else
-									UnrentVehicleAsync(v.owner, v.plate)
-								end
-							end
+					for i = 1, #v do
+						local rental = v[i]
+						if xPlayer.getAccount('bank').money >= rental.rent_price then
+							total += rental.rent_price
+							xPlayer.removeAccountMoney('bank', rental.rent_price)
+							xPlayer.showNotification(_U('paid_rental', ESX.Math.GroupDigits(rental.rent_price), rental.plate))
+						else
+							xPlayer.showNotification(_U('paid_rental_evicted', ESX.Math.GroupDigits(rental.rent_price), rental.plate))
+							unrentals[#unrentals + 1] = {rental.owner, rental.plate}
 						end
-					end)
+					end
 				end
+			else
+				local accounts = json.decode(v[1].accounts)
+				if accounts.bank < sum then
+					sum = 0
+					local limit = false
+					for i = 1, #v do
+						local rental = v[i]
+						if not limit then
+							sum += rental.rent_price
+							if sum > accounts.bank then
+								sum -= rental.rent_price
+								limit = true
+							end
+						else
+							unrentals[#unrentals + 1] = {rental.owner, rental.plate}
+						end
+					end
+				end
+				if sum > 0 then
+					total += sum
+					accounts.bank -= sum
+					users[#users + 1] = {json.encode(accounts), k}
+				end
+			end
+		end
 
-				TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
-					account.addMoney(result[i].rent_price)
-				end)
-
-				cb()
+		if total > 0 then
+			TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
+				account.addMoney(total)
 			end)
 		end
 
-		Async.parallelLimit(tasks, 5, function(results) end)
+		if next(users) then
+			MySQL.prepare.await('UPDATE users SET accounts = ? WHERE identifier = ?', users)
+		end
 
-		local elapsedTime = os.clock() - timeStart
-		print(('[esx_vehicleshop] [^2INFO^7] Paying rent cron job took %s seconds'):format(elapsedTime))
+		if next(unrentals) then
+			MySQL.prepare.await('DELETE FROM rented_vehicles WHERE owner = ? AND plate = ?', unrentals)
+		end
+
+		print(('[esx_vehicleshop] [^2INFO^7] Paying rent cron job took %s seconds'):format(os.clock() - timeStart))
 	end)
 end
 
