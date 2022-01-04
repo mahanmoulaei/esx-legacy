@@ -14,28 +14,21 @@ Citizen.CreateThread(function()
 end)
 
 function RemoveOwnedVehicle(plate)
-	MySQL.Async.execute('DELETE FROM owned_vehicles WHERE plate = @plate', {
-		['@plate'] = plate
-	})
+	MySQL.query('DELETE FROM owned_vehicles WHERE plate = ?', {plate})
 end
 
 AddEventHandler('onResourceStart', function(resourceName)
-  if resourceName == GetCurrentResourceName() then
-    MySQL.ready(function() SQLVehiclesAndCategories() end)
-  end
+	if resourceName == GetCurrentResourceName() then
+		SQLVehiclesAndCategories()
+	end
 end)
 
 function SQLVehiclesAndCategories()
-	MySQL.Async.fetchAll('SELECT * FROM `vehicle_categories`', {}, function(_categories)
-		categories = _categories
+	categories = MySQL.query.await('SELECT * FROM vehicle_categories', {})
 
-		MySQL.Async.fetchAll('SELECT * FROM `vehicles`', {}, function(_vehicles)
-			vehicles = _vehicles
+	vehicles = MySQL.query.await('SELECT * FROM vehicles', {})
 
-			GetVehiclesAndCategories(categories, vehicles)
-		end)
-
-	end)
+	GetVehiclesAndCategories(categories, vehicles)
 end
 
 function GetVehiclesAndCategories(categories, vehicles)
@@ -68,34 +61,19 @@ AddEventHandler('esx_vehicleshop:setVehicleOwnedPlayerId', function(playerId, ve
 	local xPlayer, xTarget = ESX.GetPlayerFromId(source), ESX.GetPlayerFromId(playerId)
 
 	if xPlayer.job.name == 'cardealer' and xTarget then
-		MySQL.Async.fetchAll('SELECT id FROM cardealer_vehicles WHERE vehicle = @vehicle LIMIT 1', {
-			['@vehicle'] = model
-		}, function(result)
-			if result[1] then
-				local id = result[1].id
-
-				MySQL.Async.execute('DELETE FROM cardealer_vehicles WHERE id = @id', {
-					['@id'] = id
-				}, function(rowsChanged)
+		MySQL.scalar('SELECT id FROM cardealer_vehicles WHERE vehicle = ?', {model},
+		function(id)
+			if id then
+				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
+				function(rowsChanged)
 					if rowsChanged == 1 then
-						MySQL.Async.execute('INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (@owner, @plate, @vehicle)', {
-							['@owner']   = xTarget.identifier,
-							['@plate']   = vehicleProps.plate,
-							['@vehicle'] = json.encode(vehicleProps)
-						}, function(rowsChanged)
+						MySQL.insert('INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (?, ?, ?)', {xTarget.identifier, vehicleProps.plate, json.encode(vehicleProps)},
+						function(rowsChanged)
 							xPlayer.showNotification(_U('vehicle_set_owned', vehicleProps.plate, xTarget.getName()))
 							xTarget.showNotification(_U('vehicle_belongs', vehicleProps.plate))
 						end)
 
-						local dateNow = os.date('%Y-%m-%d %H:%M')
-
-						MySQL.Async.execute('INSERT INTO vehicle_sold (client, model, plate, soldby, date) VALUES (@client, @model, @plate, @soldby, @date)', {
-							['@client'] = xTarget.getName(),
-							['@model'] = label,
-							['@plate'] = vehicleProps.plate,
-							['@soldby'] = xPlayer.getName(),
-							['@date'] = dateNow
-						})
+						MySQL.insert('INSERT INTO vehicle_sold (client, model, plate, soldby, date) VALUES (?, ?, ?, ?, ?)', {xTarget.getName(), label, vehicleProps.plate, xPlayer.getName(), os.date('%Y-%m-%d %H:%M')})
 					end
 				end)
 			end
@@ -104,7 +82,7 @@ AddEventHandler('esx_vehicleshop:setVehicleOwnedPlayerId', function(playerId, ve
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getSoldVehicles', function(source, cb)
-	MySQL.Async.fetchAll('SELECT client, model, plate, soldby, date FROM vehicle_sold', {}, function(result)
+	MySQL.query('SELECT client, model, plate, soldby, date FROM vehicle_sold', {}, function(result)
 		cb(result)
 	end)
 end)
@@ -114,24 +92,14 @@ AddEventHandler('esx_vehicleshop:rentVehicle', function(vehicle, plate, rentPric
 	local xPlayer, xTarget = ESX.GetPlayerFromId(source), ESX.GetPlayerFromId(playerId)
 
 	if xPlayer.job.name == 'cardealer' and xTarget then
-		MySQL.Async.fetchAll('SELECT id, price FROM cardealer_vehicles WHERE vehicle = @vehicle LIMIT 1', {
-			['@vehicle'] = vehicle
-		}, function(result)
-			if result[1] then
-				local price = result[1].price
-
-				MySQL.Async.execute('DELETE FROM cardealer_vehicles WHERE id = @id', {
-					['@id'] = result[1].id
-				}, function(rowsChanged)
+		MySQL.single('SELECT id, price FROM cardealer_vehicles WHERE vehicle = ?', {vehicle},
+		function(result)
+			if next(result) then
+				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {result.id},
+				function(rowsChanged)
 					if rowsChanged == 1 then
-						MySQL.Async.execute('INSERT INTO rented_vehicles (vehicle, plate, player_name, base_price, rent_price, owner) VALUES (@vehicle, @plate, @player_name, @base_price, @rent_price, @owner)', {
-							['@vehicle']     = vehicle,
-							['@plate']       = plate,
-							['@player_name'] = xTarget.getName(),
-							['@base_price']  = price,
-							['@rent_price']  = rentPrice,
-							['@owner']       = xTarget.identifier
-						}, function(rowsChanged2)
+						MySQL.insert('INSERT INTO rented_vehicles (vehicle, plate, player_name, base_price, rent_price, owner) VALUES (?, ?, ?, ?, ?, ?)', {vehicle, plate, xTarget.getName(), result.price, rentPrice, xTarget.identifier},
+						function(rowsChanged2)
 							xPlayer.showNotification(_U('vehicle_set_rented', plate, xTarget.getName()))
 						end)
 					end
@@ -206,10 +174,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:buyVehicle', function(source, cb, mo
 	if modelPrice and xPlayer.getMoney() >= modelPrice then
 		xPlayer.removeMoney(modelPrice)
 
-		MySQL.Async.execute('INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (@owner, @plate, @vehicle)', {
-			['@owner']   = xPlayer.identifier,
-			['@plate']   = plate,
-			['@vehicle'] = json.encode({model = GetHashKey(model), plate = plate})
+		MySQL.insert('INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (?, ?, ?)', {xPlayer.identifier, plate, json.encode({model = joaat(model), plate = plate})
 		}, function(rowsChanged)
 			xPlayer.showNotification(_U('vehicle_belongs', plate))
 			cb(true)
@@ -220,7 +185,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:buyVehicle', function(source, cb, mo
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getCommercialVehicles', function(source, cb)
-	MySQL.Async.fetchAll('SELECT price, vehicle FROM cardealer_vehicles ORDER BY vehicle ASC', {}, function(result)
+	MySQL.query('SELECT price, vehicle FROM cardealer_vehicles ORDER BY vehicle ASC', {}, function(result)
 		cb(result)
 	end)
 end)
@@ -243,10 +208,8 @@ ESX.RegisterServerCallback('esx_vehicleshop:buyCarDealerVehicle', function(sourc
 				if account.money >= modelPrice then
 					account.removeMoney(modelPrice)
 
-					MySQL.Async.execute('INSERT INTO cardealer_vehicles (vehicle, price) VALUES (@vehicle, @price)', {
-						['@vehicle'] = model,
-						['@price'] = modelPrice
-					}, function(rowsChanged)
+					MySQL.insert('INSERT INTO cardealer_vehicles (vehicle, price) VALUES (?, ?)', {model, modelPrice},
+					function(rowsChanged)
 						cb(true)
 					end)
 				else
@@ -262,18 +225,16 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
 	if xPlayer.job.name == 'cardealer' then
-		MySQL.Async.fetchAll('SELECT id, price FROM cardealer_vehicles WHERE vehicle = @vehicle LIMIT 1', {
-			['@vehicle'] = vehicleModel
-		}, function(result)
-			if result[1] then
-				local id = result[1].id
+		MySQL.single('SELECT id, price FROM cardealer_vehicles WHERE vehicle = ?', {vehicleModel},
+		function(result)
+			if next(result) then
+				local id = result.id
 
-				MySQL.Async.execute('DELETE FROM cardealer_vehicles WHERE id = @id', {
-					['@id'] = id
-				}, function(rowsChanged)
+				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
+				function(rowsChanged)
 					if rowsChanged == 1 then
 						TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
-							local price = ESX.Math.Round(result[1].price * 0.75)
+							local price = ESX.Math.Round(result.price * 0.75)
 							local vehicleLabel = getVehicleLabelFromModel(vehicleModel)
 
 							account.addMoney(price)
@@ -289,7 +250,7 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getRentedVehicles', function(source, cb)
-	MySQL.Async.fetchAll('SELECT * FROM rented_vehicles ORDER BY player_name ASC', {}, function(result)
+	MySQL.query('SELECT * FROM rented_vehicles ORDER BY player_name ASC', {}, function(result)
 		local vehicles = {}
 
 		for i=1, #result, 1 do
@@ -305,20 +266,15 @@ ESX.RegisterServerCallback('esx_vehicleshop:getRentedVehicles', function(source,
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:giveBackVehicle', function(source, cb, plate)
-	MySQL.Async.fetchAll('SELECT base_price, vehicle FROM rented_vehicles WHERE plate = @plate', {
-		['@plate'] = plate
-	}, function(result)
-		if result[1] then
-			local vehicle = result[1].vehicle
-			local basePrice = result[1].base_price
+	MySQL.single('SELECT base_price, vehicle FROM rented_vehicles WHERE plate = ?', {plate},
+	function(result)
+		if next(result) then
+			local vehicle = result.vehicle
+			local basePrice = result.base_price
 
-			MySQL.Async.execute('DELETE FROM rented_vehicles WHERE plate = @plate', {
-				['@plate'] = plate
-			}, function(rowsChanged)
-				MySQL.Async.execute('INSERT INTO cardealer_vehicles (vehicle, price) VALUES (@vehicle, @price)', {
-					['@vehicle'] = vehicle,
-					['@price']   = basePrice
-				})
+			MySQL.query('DELETE FROM rented_vehicles WHERE plate = ?', {plate},
+			function(rowsChanged)
+				MySQL.insert('INSERT INTO cardealer_vehicles (vehicle, price) VALUES (?, ?)', {result.vehicle, result.base_price})
 
 				RemoveOwnedVehicle(plate)
 				cb(true)
@@ -345,18 +301,15 @@ ESX.RegisterServerCallback('esx_vehicleshop:resellVehicle', function(source, cb,
 			print(('[esx_vehicleshop] [^3WARNING^7] %s attempted to sell an unknown vehicle!'):format(xPlayer.identifier))
 			cb(false)
 		else
-			MySQL.Async.fetchAll('SELECT * FROM rented_vehicles WHERE plate = @plate', {
-				['@plate'] = plate
-			}, function(result)
-				if result[1] then -- is it a rented vehicle?
+			MySQL.single('SELECT * FROM rented_vehicles WHERE plate = @plate', {plate},
+			function(result)
+				if next(result) then -- is it a rented vehicle?
 					cb(false) -- it is, don't let the player sell it since he doesn't own it
 				else
-					MySQL.Async.fetchAll('SELECT * FROM owned_vehicles WHERE owner = @owner AND @plate = plate', {
-						['@owner'] = xPlayer.identifier,
-						['@plate'] = plate
-					}, function(result)
-						if result[1] then -- does the owner match?
-							local vehicle = json.decode(result[1].vehicle)
+					MySQL.single('SELECT * FROM owned_vehicles WHERE owner = ? AND plate = ?', {xPlayer.identifier, plate},
+					function(result)
+						if next(result) then -- does the owner match?
+							local vehicle = json.decode(result.vehicle)
 
 							if vehicle.model == model then
 								if vehicle.plate == plate then
@@ -393,21 +346,17 @@ ESX.RegisterServerCallback('esx_vehicleshop:getPlayerInventory', function(source
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:isPlateTaken', function(source, cb, plate)
-	MySQL.Async.fetchAll('SELECT 1 FROM owned_vehicles WHERE plate = @plate', {
-		['@plate'] = plate
-	}, function(result)
-		cb(result[1] ~= nil)
+	MySQL.scalar('SELECT plate FROM owned_vehicles WHERE plate = ?', {plate},
+	function(result)
+		cb(result ~= nil)
 	end)
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:retrieveJobVehicles', function(source, cb, type)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.fetchAll('SELECT * FROM owned_vehicles WHERE owner = @owner AND type = @type AND job = @job', {
-		['@owner'] = xPlayer.identifier,
-		['@type'] = type,
-		['@job'] = xPlayer.job.name
-	}, function(result)
+	MySQL.query('SELECT * FROM owned_vehicles WHERE owner = ? AND type = ? AND job = ?', {xPlayer.identifier, type, xPlayer.job.name},
+	function(result)
 		cb(result)
 	end)
 end)
@@ -416,11 +365,8 @@ RegisterNetEvent('esx_vehicleshop:setJobVehicleState')
 AddEventHandler('esx_vehicleshop:setJobVehicleState', function(plate, state)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	MySQL.Async.execute('UPDATE owned_vehicles SET `stored` = @stored WHERE plate = @plate AND job = @job', {
-		['@stored'] = state,
-		['@plate'] = plate,
-		['@job'] = xPlayer.job.name
-	}, function(rowsChanged)
+	MySQL.update('UPDATE owned_vehicles SET `stored` = ? WHERE plate = ? AND job = ?', {state, plate, xPlayer.job.name},
+	function(rowsChanged)
 		if rowsChanged == 0 then
 			print(('[esx_vehicleshop] [^3WARNING^7] %s exploited the garage!'):format(xPlayer.identifier))
 		end
