@@ -109,49 +109,6 @@ AddEventHandler('esx_vehicleshop:rentVehicle', function(vehicle, plate, rentPric
 	end
 end)
 
-RegisterNetEvent('esx_vehicleshop:getStockItem')
-AddEventHandler('esx_vehicleshop:getStockItem', function(itemName, count)
-	local _source = source
-	local xPlayer = ESX.GetPlayerFromId(_source)
-
-	TriggerEvent('esx_addoninventory:getSharedInventory', 'society_cardealer', function(inventory)
-		local item = inventory.getItem(itemName)
-
-		-- is there enough in the society?
-		if count > 0 and item.count >= count then
-
-			-- can the player carry the said amount of x item?
-			if xPlayer.canCarryItem(itemName, count) then
-				inventory.removeItem(itemName, count)
-				xPlayer.addInventoryItem(itemName, count)
-				xPlayer.showNotification(_U('have_withdrawn', count, item.label))
-			else
-				xPlayer.showNotification(_U('player_cannot_hold'))
-			end
-		else
-			xPlayer.showNotification(_U('not_enough_in_society'))
-		end
-	end)
-end)
-
-RegisterNetEvent('esx_vehicleshop:putStockItems')
-AddEventHandler('esx_vehicleshop:putStockItems', function(itemName, count)
-	local _source = source
-	local xPlayer = ESX.GetPlayerFromId(_source)
-
-	TriggerEvent('esx_addoninventory:getSharedInventory', 'society_cardealer', function(inventory)
-		local item = inventory.getItem(itemName)
-
-		if item.count >= 0 then
-			xPlayer.removeInventoryItem(itemName, count)
-			inventory.addItem(itemName, count)
-			xPlayer.showNotification(_U('have_deposited', count, item.label))
-		else
-			xPlayer.showNotification(_U('invalid_amount'))
-		end
-	end)
-end)
-
 ESX.RegisterServerCallback('esx_vehicleshop:getCategories', function(source, cb)
 	cb(categories)
 end)
@@ -330,19 +287,6 @@ ESX.RegisterServerCallback('esx_vehicleshop:resellVehicle', function(source, cb,
 			end)
 		end
 	end
-end)
-
-ESX.RegisterServerCallback('esx_vehicleshop:getStockItems', function(source, cb)
-	TriggerEvent('esx_addoninventory:getSharedInventory', 'society_cardealer', function(inventory)
-		cb(inventory.items)
-	end)
-end)
-
-ESX.RegisterServerCallback('esx_vehicleshop:getPlayerInventory', function(source, cb)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local items = xPlayer.inventory
-
-	cb({items = items})
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:isPlateTaken', function(source, cb, plate)
