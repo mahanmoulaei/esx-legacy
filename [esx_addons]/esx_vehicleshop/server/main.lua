@@ -32,10 +32,12 @@ function SQLVehiclesAndCategories()
 end
 
 function GetVehiclesAndCategories(categories, vehicles)
-	for k,v in ipairs(vehicles) do
-		for k2,v2 in ipairs(categories) do
-			if v2.name == v.category then
-				vehicles[k].categoryLabel = v2.label
+	for i = 1, #vehicles do
+		local vehicle = vehicles[i]
+		for j = 1, #categories do
+			local category = categories[j]
+			if category.name == vehicle.catetgory then
+				vehicle.categoryLabel = category.label
 				break
 			end
 		end
@@ -46,10 +48,11 @@ function GetVehiclesAndCategories(categories, vehicles)
 	TriggerClientEvent('esx_vehicleshop:sendVehicles', -1, vehicles)
 end
 
-function getVehicleLabelFromModel(model)
-	for k,v in ipairs(vehicles) do
-		if v.model == model then
-			return v.name
+function getVehicleFromModel(model)
+	for i = 1, #vehicles do
+		local vehicle = vehicles[i]
+		if vehicle.model == model then
+			return vehicle
 		end
 	end
 
@@ -119,14 +122,7 @@ end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:buyVehicle', function(source, cb, model, plate)
 	local xPlayer = ESX.GetPlayerFromId(source)
-	local modelPrice
-
-	for k,v in ipairs(vehicles) do
-		if model == v.model then
-			modelPrice = v.price
-			break
-		end
-	end
+	local modelPrice = getVehicleFromModel(model).price
 
 	if modelPrice and xPlayer.getMoney() >= modelPrice then
 		xPlayer.removeMoney(modelPrice)
@@ -151,14 +147,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:buyCarDealerVehicle', function(sourc
 	local xPlayer = ESX.GetPlayerFromId(source)
 
 	if xPlayer.job.name == 'cardealer' then
-		local modelPrice
-
-		for k,v in ipairs(vehicles) do
-			if model == v.model then
-				modelPrice = v.price
-				break
-			end
-		end
+		local modelPrice = getVehicleFromModel(model).price
 
 		if modelPrice then
 			TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
@@ -192,7 +181,7 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 					if rowsChanged == 1 then
 						TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
 							local price = ESX.Math.Round(result.price * 0.75)
-							local vehicleLabel = getVehicleLabelFromModel(vehicleModel)
+							local vehicleLabel = getVehicleFromModel(vehicleModel).label
 
 							account.addMoney(price)
 							xPlayer.showNotification(_U('vehicle_sold_for', vehicleLabel, ESX.Math.GroupDigits(price)))
@@ -210,12 +199,13 @@ ESX.RegisterServerCallback('esx_vehicleshop:getRentedVehicles', function(source,
 	MySQL.query('SELECT * FROM rented_vehicles ORDER BY player_name ASC', {}, function(result)
 		local vehicles = {}
 
-		for i=1, #result, 1 do
-			table.insert(vehicles, {
-				name = result[i].vehicle,
-				plate = result[i].plate,
-				playerName = result[i].player_name
-			})
+		for i = 1, #result do
+			local vehicle = tab[i]
+			vehicles[#vehicles + 1] = {
+				name = vehicle.vehicle,
+				plate = vehicle.plate,
+				playerName = vehicle.player_name
+			}
 		end
 
 		cb(vehicles)
@@ -248,7 +238,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:resellVehicle', function(source, cb,
 	if xPlayer.job.name == 'cardealer' or not Config.EnablePlayerManagement then
 		-- calculate the resell price
 		for i=1, #vehicles, 1 do
-			if GetHashKey(vehicles[i].model) == model then
+			if joaat(vehicles[i].model) == model then
 				resellPrice = ESX.Math.Round(vehicles[i].price / 100 * Config.ResellPercentage)
 				break
 			end
