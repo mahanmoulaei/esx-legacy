@@ -6,6 +6,8 @@ description 'ESX Status'
 
 version 'legacy'
 
+lua54 'yes'
+
 shared_script '@es_extended/imports.lua'
 
 server_scripts {
