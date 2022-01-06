@@ -35,7 +35,7 @@ AddEventHandler('esx_status:loaded', function(status)
 		status.remove(75)
 	end)
 
-	TriggerEvent('esx_status:registerStatus', 'stress', 0, '#CFAD0F', function(status)
+	TriggerEvent('esx_status:registerStatus', 'stress', 0, '#d14848', function(status)
 		return Config.Visible
 	end, function(status)
 		status.remove(5)
