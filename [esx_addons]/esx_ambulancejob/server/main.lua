@@ -1,4 +1,5 @@
 local playersHealing, deadPlayers = {}, {}
+local ox_inventory = exports.ox_inventory
 
 TriggerEvent('esx_phone:registerNumber', 'ambulance', _U('alert_ambulance'), true, true)
 
@@ -100,43 +101,18 @@ end)
 ESX.RegisterServerCallback('esx_ambulancejob:removeItemsAfterRPDeath', function(source, cb)
 	local xPlayer = ESX.GetPlayerFromId(source)
 
-	if Config.RemoveCashAfterRPDeath then
-		if xPlayer.getMoney() > 0 then
-			xPlayer.removeMoney(xPlayer.getMoney())
-		end
-
-		if xPlayer.getAccount('black_money').money > 0 then
-			xPlayer.setAccountMoney('black_money', 0)
-		end
-	end
-
 	if Config.RemoveItemsAfterRPDeath then
-		for i=1, #xPlayer.inventory, 1 do
-			if xPlayer.inventory[i].count > 0 then
-				xPlayer.setInventoryItem(xPlayer.inventory[i].name, 0)
-			end
-		end
-	end
-
-	local playerLoadout = {}
-	if Config.RemoveWeaponsAfterRPDeath then
-		for i=1, #xPlayer.loadout, 1 do
-			xPlayer.removeWeapon(xPlayer.loadout[i].name)
-		end
-	else -- save weapons & restore em' since spawnmanager removes them
-		for i=1, #xPlayer.loadout, 1 do
-			table.insert(playerLoadout, xPlayer.loadout[i])
-		end
-
-		-- give back wepaons after a couple of seconds
-		Citizen.CreateThread(function()
-			Citizen.Wait(5000)
-			for i=1, #playerLoadout, 1 do
-				if playerLoadout[i].label ~= nil then
-					xPlayer.addWeapon(playerLoadout[i].name, playerLoadout[i].ammo)
+		if next(xPlayer.inventory) then
+			if Config.CreateDropOfRemovedItems then
+				local inventory = {}
+				for k, v in pairs(xPlayer.inventory) do
+					inventory[#inventory + 1] = {v.name, v.count, v.metadata}
 				end
+				local coords = vec(xPlayer.coords.x, xPlayer.coords.y, xPlayer.coords.z + 1)
+				ox_inventory:CustomDrop(("%s %s's Dropped Items"):format(xPlayer.variables.firstName, xPlayer.variables.lastName), inventory, coords)
 			end
-		end)
+			ox_inventory:ClearInventory(source)
+		end
 	end
 
 	cb()
@@ -159,13 +135,6 @@ if Config.EarlyRespawnFine then
 		xPlayer.removeAccountMoney('bank', fineAmount)
 	end)
 end
-
-ESX.RegisterServerCallback('esx_ambulancejob:getItemAmount', function(source, cb, item)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	local quantity = xPlayer.getInventoryItem(item).count
-
-	cb(quantity)
-end)
 
 ESX.RegisterServerCallback('esx_ambulancejob:buyJobVehicle', function(source, cb, vehicleProps, type)
 	local xPlayer = ESX.GetPlayerFromId(source)
@@ -221,33 +190,15 @@ function getPriceFromHash(vehicleHash, jobGrade, type)
 end
 
 RegisterNetEvent('esx_ambulancejob:removeItem')
-AddEventHandler('esx_ambulancejob:removeItem', function(item)
-	local xPlayer = ESX.GetPlayerFromId(source)
-	xPlayer.removeInventoryItem(item, 1)
-
-	if item == 'bandage' then
-		xPlayer.showNotification(_U('used_bandage'))
-	elseif item == 'medikit' then
-		xPlayer.showNotification(_U('used_medikit'))
-	end
-end)
-
-RegisterNetEvent('esx_ambulancejob:giveItem')
-AddEventHandler('esx_ambulancejob:giveItem', function(itemName, amount)
-	local xPlayer = ESX.GetPlayerFromId(source)
-
-	if xPlayer.job.name ~= 'ambulance' then
-		print(('[esx_ambulancejob] [^2INFO^7] "%s" attempted to spawn in an item!'):format(xPlayer.identifier))
-		return
-	elseif (itemName ~= 'medikit' and itemName ~= 'bandage') then
-		print(('[esx_ambulancejob] [^2INFO^7] "%s" attempted to spawn in an item!'):format(xPlayer.identifier))
-		return
-	end
-
-	if xPlayer.canCarryItem(itemName, amount) then
-		xPlayer.addInventoryItem(itemName, amount)
-	else
-		xPlayer.showNotification(_U('max_item'))
+AddEventHandler('esx_ambulancejob:removeItem', function(itemName)
+	local item = ox_inventory:GetItem(source, itemName)
+	if item.count > 0 then
+		ox_inventory:RemoveItem(source, itemName, 1)
+		if itemName == 'bandage' then
+			xPlayer.showNotification(_U('used_bandage'))
+		elseif itemName == 'medikit' then
+			xPlayer.showNotification(_U('used_medikit'))
+		end
 	end
 end)
 

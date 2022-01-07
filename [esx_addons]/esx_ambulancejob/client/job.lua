@@ -3,6 +3,8 @@ local HasAlreadyEnteredMarker, LastHospital, LastPart, LastPartNum
 local isBusy, deadPlayers, deadPlayerBlips, isOnDuty = false, {}, {}, false
 isInShopMenu = false
 
+local ox_inventory = exports.ox_inventory
+
 function OpenAmbulanceActionsMenu()
 	local elements = {{label = _U('cloakroom'), value = 'cloakroom'}}
 
@@ -61,60 +63,56 @@ function OpenMobileAmbulanceActionsMenu()
 					if data.current.value == 'revive' then
 						revivePlayer(closestPlayer)
 					elseif data.current.value == 'small' then
-						ESX.TriggerServerCallback('esx_ambulancejob:getItemAmount', function(quantity)
-							if quantity > 0 then
-								local closestPlayerPed = GetPlayerPed(closestPlayer)
-								local health = GetEntityHealth(closestPlayerPed)
+						local quantity = ox_inventory:Search('count', 'bandage')
+						if quantity > 0 then
+							local closestPlayerPed = GetPlayerPed(closestPlayer)
+							local health = GetEntityHealth(closestPlayerPed)
 
-								if health > 0 then
-									local playerPed = PlayerPedId()
+							if health > 0 then
+								local playerPed = PlayerPedId()
 
-									isBusy = true
-									ESX.ShowNotification(_U('heal_inprogress'))
-									TaskStartScenarioInPlace(playerPed, 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', 0, true)
-									Citizen.Wait(10000)
-									ClearPedTasks(playerPed)
+								isBusy = true
+								ESX.ShowNotification(_U('heal_inprogress'))
+								TaskStartScenarioInPlace(playerPed, 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', 0, true)
+								Citizen.Wait(10000)
+								ClearPedTasks(playerPed)
 
-									TriggerServerEvent('esx_ambulancejob:removeItem', 'bandage')
-									TriggerServerEvent('esx_ambulancejob:heal', GetPlayerServerId(closestPlayer), 'small')
-									ESX.ShowNotification(_U('heal_complete', GetPlayerName(closestPlayer)))
-									isBusy = false
-								else
-									ESX.ShowNotification(_U('player_not_conscious'))
-								end
+								TriggerServerEvent('esx_ambulancejob:removeItem', 'bandage')
+								TriggerServerEvent('esx_ambulancejob:heal', GetPlayerServerId(closestPlayer), 'small')
+								ESX.ShowNotification(_U('heal_complete', GetPlayerName(closestPlayer)))
+								isBusy = false
 							else
-								ESX.ShowNotification(_U('not_enough_bandage'))
+								ESX.ShowNotification(_U('player_not_conscious'))
 							end
-						end, 'bandage')
+						else
+							ESX.ShowNotification(_U('not_enough_bandage'))
+						end
 
 					elseif data.current.value == 'big' then
+						local quantity = ox_inventory:Search('count', 'medikit')
+						if quantity > 0 then
+							local closestPlayerPed = GetPlayerPed(closestPlayer)
+							local health = GetEntityHealth(closestPlayerPed)
 
-						ESX.TriggerServerCallback('esx_ambulancejob:getItemAmount', function(quantity)
-							if quantity > 0 then
-								local closestPlayerPed = GetPlayerPed(closestPlayer)
-								local health = GetEntityHealth(closestPlayerPed)
+							if health > 0 then
+								local playerPed = PlayerPedId()
 
-								if health > 0 then
-									local playerPed = PlayerPedId()
+								isBusy = true
+								ESX.ShowNotification(_U('heal_inprogress'))
+								TaskStartScenarioInPlace(playerPed, 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', 0, true)
+								Citizen.Wait(10000)
+								ClearPedTasks(playerPed)
 
-									isBusy = true
-									ESX.ShowNotification(_U('heal_inprogress'))
-									TaskStartScenarioInPlace(playerPed, 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', 0, true)
-									Citizen.Wait(10000)
-									ClearPedTasks(playerPed)
-
-									TriggerServerEvent('esx_ambulancejob:removeItem', 'medikit')
-									TriggerServerEvent('esx_ambulancejob:heal', GetPlayerServerId(closestPlayer), 'big')
-									ESX.ShowNotification(_U('heal_complete', GetPlayerName(closestPlayer)))
-									isBusy = false
-								else
-									ESX.ShowNotification(_U('player_not_conscious'))
-								end
+								TriggerServerEvent('esx_ambulancejob:removeItem', 'medikit')
+								TriggerServerEvent('esx_ambulancejob:heal', GetPlayerServerId(closestPlayer), 'big')
+								ESX.ShowNotification(_U('heal_complete', GetPlayerName(closestPlayer)))
+								isBusy = false
 							else
-								ESX.ShowNotification(_U('not_enough_medikit'))
+								ESX.ShowNotification(_U('player_not_conscious'))
 							end
-						end, 'medikit')
-
+						else
+							ESX.ShowNotification(_U('not_enough_medikit'))
+						end
 					elseif data.current.value == 'put_in_vehicle' then
 						TriggerServerEvent('esx_ambulancejob:putInVehicle', GetPlayerServerId(closestPlayer))
 					end
@@ -132,33 +130,32 @@ end
 function revivePlayer(closestPlayer)
 	isBusy = true
 
-	ESX.TriggerServerCallback('esx_ambulancejob:getItemAmount', function(quantity)
-		if quantity > 0 then
-			local closestPlayerPed = GetPlayerPed(closestPlayer)
+	local quantity = ox_inventory:Search('count', 'medikit')
+	if quantity > 0 then
+		local closestPlayerPed = GetPlayerPed(closestPlayer)
 
-			if IsPedDeadOrDying(closestPlayerPed, 1) then
-				local playerPed = PlayerPedId()
-				local lib, anim = 'mini@cpr@char_a@cpr_str', 'cpr_pumpchest'
-				ESX.ShowNotification(_U('revive_inprogress'))
+		if IsPedDeadOrDying(closestPlayerPed, 1) then
+			local playerPed = PlayerPedId()
+			local lib, anim = 'mini@cpr@char_a@cpr_str', 'cpr_pumpchest'
+			ESX.ShowNotification(_U('revive_inprogress'))
 
-				for i=1, 15 do
-					Citizen.Wait(900)
+			for i=1, 15 do
+				Citizen.Wait(900)
 
-					ESX.Streaming.RequestAnimDict(lib, function()
-						TaskPlayAnim(playerPed, lib, anim, 8.0, -8.0, -1, 0, 0.0, false, false, false)
-					end)
-				end
-
-				TriggerServerEvent('esx_ambulancejob:removeItem', 'medikit')
-				TriggerServerEvent('esx_ambulancejob:revive', GetPlayerServerId(closestPlayer))
-			else
-				ESX.ShowNotification(_U('player_not_unconscious'))
+				ESX.Streaming.RequestAnimDict(lib, function()
+					TaskPlayAnim(playerPed, lib, anim, 8.0, -8.0, -1, 0, 0.0, false, false, false)
+				end)
 			end
+
+			TriggerServerEvent('esx_ambulancejob:removeItem', 'medikit')
+			TriggerServerEvent('esx_ambulancejob:revive', GetPlayerServerId(closestPlayer))
 		else
-			ESX.ShowNotification(_U('not_enough_medikit'))
+			ESX.ShowNotification(_U('player_not_unconscious'))
 		end
-		isBusy = false
-	end, 'medikit')
+	else
+		ESX.ShowNotification(_U('not_enough_medikit'))
+	end
+	isBusy = false
 end
 
 function FastTravel(coords, heading)
@@ -364,7 +361,7 @@ Citizen.CreateThread(function()
 				if CurrentAction == 'AmbulanceActions' then
 					OpenAmbulanceActionsMenu()
 				elseif CurrentAction == 'Pharmacy' then
-					OpenPharmacyMenu()
+					ox_inventory:openInventory('stash', 'society_ambulance')
 				elseif CurrentAction == 'Vehicles' then
 					OpenVehicleSpawnerMenu('car', CurrentActionData.hospital, CurrentAction, CurrentActionData.partNum)
 				elseif CurrentAction == 'Helicopters' then
@@ -439,22 +436,6 @@ function OpenCloakroomMenu()
 		end
 
 		menu.close()
-	end, function(data, menu)
-		menu.close()
-	end)
-end
-
-function OpenPharmacyMenu()
-	ESX.UI.Menu.CloseAll()
-
-	ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'pharmacy', {
-		title    = _U('pharmacy_menu_title'),
-		align    = 'top-left',
-		elements = {
-			{label = _U('pharmacy_take', _U('medikit')), item = 'medikit', type = 'slider', value = 1, min = 1, max = 100},
-			{label = _U('pharmacy_take', _U('bandage')), item = 'bandage', type = 'slider', value = 1, min = 1, max = 100}
-	}}, function(data, menu)
-		TriggerServerEvent('esx_ambulancejob:giveItem', data.current.item, data.current.value)
 	end, function(data, menu)
 		menu.close()
 	end)
