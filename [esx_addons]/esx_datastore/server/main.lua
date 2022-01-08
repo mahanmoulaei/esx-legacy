@@ -12,10 +12,10 @@ AddEventHandler('onResourceStart', function(resourceName)
 					DataStoresIndex[#DataStoresIndex + 1] = data.name
 					DataStores[data.name] = {}
 				end
-				DataStores[data.name][#DataStores[data.name] + 1] = CreateAddonAccount(data.name, data.owner, data.data)
+				DataStores[data.name][#DataStores[data.name] + 1] = CreateDataStore(data.name, data.owner, data.data)
 			else
 				if data.data then
-					SharedDataStores[data.name] = CreateAddonAccount(data.name, nil, data.data)
+					SharedDataStores[data.name] = CreateDataStore(data.name, nil, data.data)
 				else
 					newData[#newData + 1] = {data.name, '\'{}\''}
 				end
@@ -26,7 +26,7 @@ AddEventHandler('onResourceStart', function(resourceName)
 			MySQL.prepare('INSERT INTO datastore_data (name, data) VALUES (?, ?)', {{newData}})
 			for i = 1, #newData do
 				local new = newData[i]
-				SharedDataStores[new[1]] = CreateAddonAccount(new[1], nil, new[2])
+				SharedDataStores[new[1]] = CreateDataStore(new[1], nil, new[2])
 			end
 		end
 	end
