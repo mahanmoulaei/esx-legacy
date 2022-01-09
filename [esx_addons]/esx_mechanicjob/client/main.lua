@@ -52,6 +52,8 @@ function StopNPCJob(cancel)
 	end
 end
 
+local ox_inventory = exports.ox_inventory
+
 function OpenMechanicActionsMenu()
 	local elements = {
 		{label = _U('vehicle_list'),   value = 'vehicle_list'},
@@ -162,10 +164,8 @@ function OpenMechanicActionsMenu()
 			ESX.TriggerServerCallback('esx_skin:getPlayerSkin', function(skin, jobSkin)
 				TriggerEvent('skinchanger:loadSkin', skin)
 			end)
-		elseif data.current.value == 'put_stock' then
-			OpenPutStocksMenu()
-		elseif data.current.value == 'get_stock' then
-			OpenGetStocksMenu()
+		elseif data.current.value == 'put_stock' or data.current.value == 'get_stock' then
+			ox_inventory:openInventory('stash', 'society_mechanic')
 		elseif data.current.value == 'boss_actions' then
 			TriggerEvent('esx_society:openBossMenu', 'mechanic', function(data, menu)
 				menu.close()
@@ -420,95 +420,6 @@ function OpenMobileMechanicActionsMenu()
 		end
 	end, function(data, menu)
 		menu.close()
-	end)
-end
-
-function OpenGetStocksMenu()
-	ESX.TriggerServerCallback('esx_mechanicjob:getStockItems', function(items)
-		local elements = {}
-
-		for i=1, #items, 1 do
-			table.insert(elements, {
-				label = 'x' .. items[i].count .. ' ' .. items[i].label,
-				value = items[i].name
-			})
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'stocks_menu', {
-			title    = _U('mechanic_stock'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-			local itemName = data.current.value
-
-			ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'stocks_menu_get_item_count', {
-				title = _U('quantity')
-			}, function(data2, menu2)
-				local count = tonumber(data2.value)
-
-				if count == nil then
-					ESX.ShowNotification(_U('invalid_quantity'))
-				else
-					menu2.close()
-					menu.close()
-					TriggerServerEvent('esx_mechanicjob:getStockItem', itemName, count)
-
-					Citizen.Wait(1000)
-					OpenGetStocksMenu()
-				end
-			end, function(data2, menu2)
-				menu2.close()
-			end)
-		end, function(data, menu)
-			menu.close()
-		end)
-	end)
-end
-
-function OpenPutStocksMenu()
-	ESX.TriggerServerCallback('esx_mechanicjob:getPlayerInventory', function(inventory)
-		local elements = {}
-
-		for i=1, #inventory.items, 1 do
-			local item = inventory.items[i]
-
-			if item.count > 0 then
-				table.insert(elements, {
-					label = item.label .. ' x' .. item.count,
-					type  = 'item_standard',
-					value = item.name
-				})
-			end
-		end
-
-		ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'stocks_menu', {
-			title    = _U('inventory'),
-			align    = 'top-left',
-			elements = elements
-		}, function(data, menu)
-			local itemName = data.current.value
-
-			ESX.UI.Menu.Open('dialog', GetCurrentResourceName(), 'stocks_menu_put_item_count', {
-				title = _U('quantity')
-			}, function(data2, menu2)
-				local count = tonumber(data2.value)
-
-				if count == nil then
-					ESX.ShowNotification(_U('invalid_quantity'))
-				else
-					menu2.close()
-					menu.close()
-					TriggerServerEvent('esx_mechanicjob:putStockItems', itemName, count)
-
-					Citizen.Wait(1000)
-					OpenPutStocksMenu()
-				end
-			end, function(data2, menu2)
-				menu2.close()
-			end)
-		end, function(data, menu)
-			menu.close()
-		end)
 	end)
 end
 
