@@ -2,7 +2,7 @@ local AccountsIndex, Accounts, SharedAccounts = {}, {}, {}
 
 AddEventHandler('onResourceStart', function(resourceName)
 	if resourceName == GetCurrentResourceName() then
-		local accounts = MySQL.query.await('SELECT * FROM addon_account JOIN addon_account_data ON addon_account.name = addon_account_data.account_name')
+		local accounts = MySQL.query.await('SELECT * FROM addon_account LEFT JOIN addon_account_data ON addon_account.name = addon_account_data.account_name UNION SELECT * FROM addon_account RIGHT JOIN addon_account_data ON addon_account.name = addon_account_data.account_name')
 
 		local newAccounts = {}
 		for i = 1, #accounts do
@@ -23,7 +23,7 @@ AddEventHandler('onResourceStart', function(resourceName)
 		end
 
 		if next(newAccounts) then
-			MySQL.prepare('INSERT INTO addon_account_data (account_name, money) VALUES (?, ?)', {{newAccounts}})
+			MySQL.prepare('INSERT INTO addon_account_data (account_name, money) VALUES (?, ?)', newAccounts)
 			for i = 1, #newAccounts do
 				local newAccount = newAccounts[i]
 				SharedAccounts[newAccount[1]] = CreateAddonAccount(newAccount[1], nil, 0)
