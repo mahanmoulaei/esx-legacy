@@ -2,7 +2,7 @@ local DataStores, DataStoresIndex, SharedDataStores = {}, {}, {}
 
 AddEventHandler('onResourceStart', function(resourceName)
 	if resourceName == GetCurrentResourceName() then
-		local dataStore = MySQL.query.await('SELECT * FROM datastore JOIN datastore_data ON datastore.name = datastore_data.name')
+		local dataStore = MySQL.query.await('SELECT * FROM datastore LEFT JOIN datastore_data ON datastore.name = datastore_data.name UNION SELECT * FROM datastore RIGHT JOIN datastore_data ON datastore.name = datastore_data.name')
 
 		local newData = {}
 		for i = 1, #dataStore do
@@ -23,7 +23,7 @@ AddEventHandler('onResourceStart', function(resourceName)
 		end
 
 		if next(newData) then
-			MySQL.prepare('INSERT INTO datastore_data (name, data) VALUES (?, ?)', {{newData}})
+			MySQL.prepare('INSERT INTO datastore_data (name, data) VALUES (?, ?)', newData)
 			for i = 1, #newData do
 				local new = newData[i]
 				SharedDataStores[new[1]] = CreateDataStore(new[1], nil, new[2])
