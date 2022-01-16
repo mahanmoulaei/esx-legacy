@@ -406,7 +406,7 @@ Citizen.CreateThread(function()
 
 		if ESX.PlayerData.job and ESX.PlayerData.job.name == 'taxi' then
 			local coords = GetEntityCoords(PlayerPedId())
-			local isInMarker, letSleep, currentZone = false, true, nil
+			local isInMarker, letSleep, currentZone = false, true
 
 			for k,v in pairs(Config.Zones) do
 				local distance = GetDistanceBetweenCoords(coords, v.Pos.x, v.Pos.y, v.Pos.z, true)
