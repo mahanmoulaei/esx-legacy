@@ -1,7 +1,6 @@
 Citizen.CreateThread(function()
 	local ESX = exports['es_extended']:getSharedObject()
-	local GUI, MenuType = {}, 'default'
-	GUI.Time = 0
+	local MenuType = 'default'
 
 	local openMenu = function(namespace, name, data)
 		SendNUIMessage({
@@ -25,7 +24,7 @@ Citizen.CreateThread(function()
 
 	RegisterNUICallback('menu_submit', function(data, cb)
 		local menu = ESX.UI.Menu.GetOpened(MenuType, data._namespace, data._name)
-		if menu.submit ~= nil then
+		if menu.submit then
 			menu.submit(data, menu)
 		end
 		cb('OK')
@@ -34,7 +33,7 @@ Citizen.CreateThread(function()
 	RegisterNUICallback('menu_cancel', function(data, cb)
 		local menu = ESX.UI.Menu.GetOpened(MenuType, data._namespace, data._name)
 
-		if menu.cancel ~= nil then
+		if menu.cancel then
 			menu.cancel(data, menu)
 		end
 		cb('OK')
@@ -45,52 +44,35 @@ Citizen.CreateThread(function()
 
 		for i=1, #data.elements, 1 do
 			menu.setElement(i, 'value', data.elements[i].value)
-
-			if data.elements[i].selected then
-				menu.setElement(i, 'selected', true)
-			else
-				menu.setElement(i, 'selected', false)
-			end
+			menu.setElement(i, 'selected', data.elements[i].selected and true)
 		end
 
-		if menu.change ~= nil then
+		if menu.change then
 			menu.change(data, menu)
 		end
 		cb('OK')
 	end)
 
+	local function sendNuiMessage(key)
+		SendNUIMessage({action = 'controlPressed', control = key})
+		Wait(200)
+	end
+
 	Citizen.CreateThread(function()
 		while true do
 			Citizen.Wait(15)
-
-			if IsControlPressed(0, 18) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 150 then
-				SendNUIMessage({action = 'controlPressed', control = 'ENTER'})
-				GUI.Time = GetGameTimer()
-			end
-
-			if IsControlPressed(0, 177) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 150 then
-				SendNUIMessage({action  = 'controlPressed', control = 'BACKSPACE'})
-				GUI.Time = GetGameTimer()
-			end
-
-			if IsControlPressed(0, 27) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 200 then
-				SendNUIMessage({action  = 'controlPressed', control = 'TOP'})
-				GUI.Time = GetGameTimer()
-			end
-
-			if IsControlPressed(0, 173) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 200 then
-				SendNUIMessage({action  = 'controlPressed', control = 'DOWN'})
-				GUI.Time = GetGameTimer()
-			end
-
-			if IsControlPressed(0, 174) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 150 then
-				SendNUIMessage({action  = 'controlPressed', control = 'LEFT'})
-				GUI.Time = GetGameTimer()
-			end
-
-			if IsControlPressed(0, 175) and IsInputDisabled(0) and (GetGameTimer() - GUI.Time) > 150 then
-				SendNUIMessage({action  = 'controlPressed', control = 'RIGHT'})
-				GUI.Time = GetGameTimer()
+			if IsControlPressed(0, 18) then
+				sendNuiMessage('ENTER')
+			elseif IsControlPressed(0, 177) then
+				sendNuiMessage('BACKSPACE')
+			elseif IsControlPressed(0, 27) then
+				sendNuiMessage('TOP')
+			elseif IsControlPressed(0, 173) then
+				sendNuiMessage('DOWN')
+			elseif IsControlPressed(0, 174) then
+				sendNuiMessage('LEFT')
+			elseif IsControlPressed(0, 175) then
+				sendNuiMessage('RIGHT')
 			end
 		end
 	end)
