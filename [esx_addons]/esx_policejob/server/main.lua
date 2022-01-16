@@ -103,7 +103,7 @@ ESX.RegisterServerCallback('esx_policejob:getVehicleInfos', function(source, cb,
 	if Config.EnableESXIdentity then
 		MySQL.single('SELECT users.firstname, users.lastname FROM owned_vehicles JOIN users ON owned_vehicles.owner = users.identifier WHERE plate = ?', {plate},
 		function(result)
-			if next(result) then
+			if result then
 				retrivedInfo.owner = ('%s %s'):format(result.firstname, result.lastname)
 			end
 			cb(retrivedInfo)

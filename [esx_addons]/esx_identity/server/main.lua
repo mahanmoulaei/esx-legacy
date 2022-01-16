@@ -11,7 +11,7 @@ if Config.UseDeferrals then
 		if identifier then
 			MySQL.single('SELECT firstname, lastname, dateofbirth, sex, height FROM users WHERE identifier = ?', {identifier},
 			function(result)
-				if next(result) then
+				if result then
 					if result.firstname then
 						playerIdentity[identifier] = {
 							firstName = result.firstname,
@@ -108,7 +108,7 @@ elseif not Config.UseDeferrals then
 			if identifier then
 			MySQL.single('SELECT firstname, lastname, dateofbirth, sex, height FROM users WHERE identifier = ?', {identifier},
 			function(result)
-				if next(result) then
+				if result then
 						if result.firstname then
 							playerIdentity[identifier] = {
 								firstName = result.firstname,
@@ -225,7 +225,7 @@ elseif not Config.UseDeferrals then
 	function checkIdentity(xPlayer)
 		MySQL.single('SELECT firstname, lastname, dateofbirth, sex, height FROM users WHERE identifier = ?', {identifier},
 		function(result)
-			if next(result) then
+			if result then
 				if result.firstname then
 					playerIdentity[xPlayer.identifier] = {
 						firstName = result.firstname,

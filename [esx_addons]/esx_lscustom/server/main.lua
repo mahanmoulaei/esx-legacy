@@ -39,7 +39,7 @@ AddEventHandler('esx_lscustom:refreshOwnedVehicle', function(vehicleProps)
 
 	MySQL.single('SELECT vehicle FROM owned_vehicles WHERE plate = ?', {vehicleProps.plate},
 	function(result)
-		if next(result) then
+		if result then
 			local vehicle = json.decode(result.vehicle)
 
 			if vehicleProps.model == vehicle.model then

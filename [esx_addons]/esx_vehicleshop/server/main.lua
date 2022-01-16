@@ -97,7 +97,7 @@ AddEventHandler('esx_vehicleshop:rentVehicle', function(vehicle, plate, rentPric
 	if xPlayer.job.name == 'cardealer' and xTarget then
 		MySQL.single('SELECT id, price FROM cardealer_vehicles WHERE vehicle = ?', {vehicle},
 		function(result)
-			if next(result) then
+			if result then
 				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {result.id},
 				function(rowsChanged)
 					if rowsChanged == 1 then
@@ -173,7 +173,7 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 	if xPlayer.job.name == 'cardealer' then
 		MySQL.single('SELECT id, price FROM cardealer_vehicles WHERE vehicle = ?', {vehicleModel},
 		function(result)
-			if next(result) then
+			if result then
 				local id = result.id
 
 				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
@@ -215,7 +215,7 @@ end)
 ESX.RegisterServerCallback('esx_vehicleshop:giveBackVehicle', function(source, cb, plate)
 	MySQL.single('SELECT base_price, vehicle FROM rented_vehicles WHERE plate = ?', {plate},
 	function(result)
-		if next(result) then
+		if result then
 			local vehicle = result.vehicle
 			local basePrice = result.base_price
 
@@ -250,12 +250,12 @@ ESX.RegisterServerCallback('esx_vehicleshop:resellVehicle', function(source, cb,
 		else
 			MySQL.single('SELECT * FROM rented_vehicles WHERE plate = @plate', {plate},
 			function(result)
-				if next(result) then -- is it a rented vehicle?
+				if result then -- is it a rented vehicle?
 					cb(false) -- it is, don't let the player sell it since he doesn't own it
 				else
 					MySQL.single('SELECT * FROM owned_vehicles WHERE owner = ? AND plate = ?', {xPlayer.identifier, plate},
 					function(result)
-						if next(result) then -- does the owner match?
+						if result then -- does the owner match?
 							local vehicle = json.decode(result.vehicle)
 
 							if vehicle.model == model then

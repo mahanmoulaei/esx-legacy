@@ -48,7 +48,7 @@ ESX.RegisterServerCallback('esx_billing:payBill', function(source, cb, billId)
 
 	MySQL.single('SELECT sender, target_type, target, amount FROM billing WHERE id = ?', {billId},
 	function(result)
-		if next(result) then
+		if result then
 			local amount = result.amount
 			local xTarget = ESX.GetPlayerFromIdentifier(result.sender)
 
