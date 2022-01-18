@@ -2,7 +2,7 @@ local DataStores, DataStoresIndex, SharedDataStores = {}, {}, {}
 
 AddEventHandler('onResourceStart', function(resourceName)
 	if resourceName == GetCurrentResourceName() then
-		local dataStore = MySQL.query.await('SELECT * FROM datastore LEFT JOIN datastore_data ON datastore.name = datastore_data.name UNION SELECT * FROM datastore RIGHT JOIN datastore_data ON datastore.name = datastore_data.name')
+		local dataStore = MySQL.query.await('SELECT * FROM datastore_data LEFT JOIN datastore ON datastore_data.name = datastore.name UNION SELECT * FROM datastore_data RIGHT JOIN datastore ON datastore_data.name = datastore.name')
 
 		local newData = {}
 		for i = 1, #dataStore do
