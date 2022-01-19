@@ -6,6 +6,7 @@ Citizen.CreateThread(function()
 		if NetworkIsPlayerActive(PlayerId()) then
 			exports.spawnmanager:setAutoSpawn(false)
 			DoScreenFadeOut(0)
+			print('Haroki was here')
 			TriggerServerEvent('esx:onPlayerJoined')
 			break
 		end
