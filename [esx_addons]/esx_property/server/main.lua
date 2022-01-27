@@ -32,7 +32,7 @@ function RemoveOwnedProperty(name, owner, noPay)
 		name, owner
 	}, function(result)
 		if result[1] then
-			MySQL.query('DELETE FROM owned_properties WHERE id = @id', {
+			MySQL.update('DELETE FROM owned_properties WHERE id = @id', {
 				['@id'] = result[1].id
 			}, function(rowsChanged)
 				local xPlayer = ESX.GetPlayerFromIdentifier(owner)
@@ -52,7 +52,7 @@ function RemoveOwnedProperty(name, owner, noPay)
 					end
 				end
 			end)
-			MySQL.query('DELETE FROM ox_inventory WHERE owner = ? AND name = ?', {
+			MySQL.update('DELETE FROM ox_inventory WHERE owner = ? AND name = ?', {
 				owner, ('%s%s'):format(owner, name)
 			})
 		end

@@ -14,7 +14,7 @@ Citizen.CreateThread(function()
 end)
 
 function RemoveOwnedVehicle(plate)
-	MySQL.query('DELETE FROM owned_vehicles WHERE plate = ?', {plate})
+	MySQL.update('DELETE FROM owned_vehicles WHERE plate = ?', {plate})
 end
 
 AddEventHandler('onResourceStart', function(resourceName)
@@ -67,11 +67,11 @@ AddEventHandler('esx_vehicleshop:setVehicleOwnedPlayerId', function(playerId, ve
 		MySQL.scalar('SELECT id FROM cardealer_vehicles WHERE vehicle = ?', {model},
 		function(id)
 			if id then
-				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
+				MySQL.update('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
 				function(rowsChanged)
 					if rowsChanged == 1 then
 						MySQL.insert('INSERT INTO owned_vehicles (owner, plate, vehicle) VALUES (?, ?, ?)', {xTarget.identifier, vehicleProps.plate, json.encode(vehicleProps)},
-						function(rowsChanged)
+						function(id)
 							xPlayer.showNotification(_U('vehicle_set_owned', vehicleProps.plate, xTarget.getName()))
 							xTarget.showNotification(_U('vehicle_belongs', vehicleProps.plate))
 						end)
@@ -85,7 +85,7 @@ AddEventHandler('esx_vehicleshop:setVehicleOwnedPlayerId', function(playerId, ve
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getSoldVehicles', function(source, cb)
-	MySQL.query('SELECT client, model, plate, soldby, date FROM vehicle_sold', {}, function(result)
+	MySQL.query('SELECT client, model, plate, soldby, date FROM vehicle_sold', function(result)
 		cb(result)
 	end)
 end)
@@ -98,11 +98,11 @@ AddEventHandler('esx_vehicleshop:rentVehicle', function(vehicle, plate, rentPric
 		MySQL.single('SELECT id, price FROM cardealer_vehicles WHERE vehicle = ?', {vehicle},
 		function(result)
 			if result then
-				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {result.id},
+				MySQL.update('DELETE FROM cardealer_vehicles WHERE id = ?', {result.id},
 				function(rowsChanged)
 					if rowsChanged == 1 then
 						MySQL.insert('INSERT INTO rented_vehicles (vehicle, plate, player_name, base_price, rent_price, owner) VALUES (?, ?, ?, ?, ?, ?)', {vehicle, plate, xTarget.getName(), result.price, rentPrice, xTarget.identifier},
-						function(rowsChanged2)
+						function(id)
 							xPlayer.showNotification(_U('vehicle_set_rented', plate, xTarget.getName()))
 						end)
 					end
@@ -138,7 +138,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:buyVehicle', function(source, cb, mo
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getCommercialVehicles', function(source, cb)
-	MySQL.query('SELECT price, vehicle FROM cardealer_vehicles ORDER BY vehicle ASC', {}, function(result)
+	MySQL.query('SELECT price, vehicle FROM cardealer_vehicles ORDER BY vehicle ASC', function(result)
 		cb(result)
 	end)
 end)
@@ -176,7 +176,7 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 			if result then
 				local id = result.id
 
-				MySQL.query('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
+				MySQL.update('DELETE FROM cardealer_vehicles WHERE id = ?', {id},
 				function(rowsChanged)
 					if rowsChanged == 1 then
 						TriggerEvent('esx_addonaccount:getSharedAccount', 'society_cardealer', function(account)
@@ -196,7 +196,7 @@ AddEventHandler('esx_vehicleshop:returnProvider', function(vehicleModel)
 end)
 
 ESX.RegisterServerCallback('esx_vehicleshop:getRentedVehicles', function(source, cb)
-	MySQL.query('SELECT * FROM rented_vehicles ORDER BY player_name ASC', {}, function(result)
+	MySQL.query('SELECT * FROM rented_vehicles ORDER BY player_name ASC', function(result)
 		local vehicles = {}
 
 		for i = 1, #result do
@@ -219,7 +219,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:giveBackVehicle', function(source, c
 			local vehicle = result.vehicle
 			local basePrice = result.base_price
 
-			MySQL.query('DELETE FROM rented_vehicles WHERE plate = ?', {plate},
+			MySQL.update('DELETE FROM rented_vehicles WHERE plate = ?', {plate},
 			function(rowsChanged)
 				MySQL.insert('INSERT INTO cardealer_vehicles (vehicle, price) VALUES (?, ?)', {result.vehicle, result.base_price})
 
@@ -248,7 +248,7 @@ ESX.RegisterServerCallback('esx_vehicleshop:resellVehicle', function(source, cb,
 			print(('[esx_vehicleshop] [^3WARNING^7] %s attempted to sell an unknown vehicle!'):format(xPlayer.identifier))
 			cb(false)
 		else
-			MySQL.single('SELECT * FROM rented_vehicles WHERE plate = @plate', {plate},
+			MySQL.single('SELECT * FROM rented_vehicles WHERE plate = ?', {plate},
 			function(result)
 				if result then -- is it a rented vehicle?
 					cb(false) -- it is, don't let the player sell it since he doesn't own it
