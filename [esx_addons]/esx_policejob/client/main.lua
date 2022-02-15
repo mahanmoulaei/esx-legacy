@@ -1,4 +1,4 @@
-local CurrentActionData, handcuffTimer, dragStatus, blipsCops, currentTask = {}, {}, {}, {}, {}
+local CurrentActionData, handcuffTimer, dragStatus, blipsCops, currentTask, spikestripsLocations, spikestripsBlips = {}, {}, {}, {}, {}, {}, {}
 local HasAlreadyEnteredMarker, isDead, isHandcuffed, hasAlreadyJoined, playerInService = false, false, false, false, false
 local LastStation, LastPart, LastPartNum, LastEntity, CurrentAction, CurrentActionMsg
 dragStatus.isDragged, isInShopMenu = false, false
@@ -7,12 +7,20 @@ RegisterNetEvent('esx:playerLoaded')
 AddEventHandler('esx:playerLoaded', function(xPlayer)
 	ESX.PlayerData = xPlayer
 	ESX.PlayerLoaded = true
+	ESX.TriggerServerCallback('esx_policejob:getSpikestripsLocations', function(list)
+		if next(list) ~= nil then
+			for index, element in pairs(list) do
+				SetSpikestripsLocation(element.Coords, element.Heading)
+			end	
+		end
+	end)
 end)
 
 RegisterNetEvent('esx:onPlayerLogout')
 AddEventHandler('esx:onPlayerLogout', function()
 	ESX.PlayerLoaded = false
 	ESX.PlayerData = {}
+	DeleteAllSpikeZones()
 end)
 
 function cleanPlayer(playerPed)
@@ -210,8 +218,8 @@ function OpenArmoryMenu(station)
 
 	if Config.EnableArmoryManagement then
 		elements ={
-			{label = _U('remove_object'),  value = 'get_stock'},
-			{label = _U('deposit_object'), value = 'put_stock'}
+			{label = _U('remove_object'),  value = 'get_stock'}
+			--{label = _U('deposit_object'), value = 'put_stock'}
 		}
 	else
 		elements = {
@@ -393,10 +401,17 @@ function OpenPoliceActionsMenu()
 				local playerPed = PlayerPedId()
 				local coords, forward = GetEntityCoords(playerPed), GetEntityForwardVector(playerPed)
 				local objectCoords = (coords + forward * 1.0)
-
-				ESX.Game.SpawnObject(data2.current.model, objectCoords, function(obj)
-					SetEntityHeading(obj, GetEntityHeading(playerPed))
+				local heading = GetEntityHeading(playerPed)
+				ESX.Onesync.SpawnObject(data2.current.model, objectCoords, heading, function(obj)
+					SetEntityHeading(obj, heading)
 					PlaceObjectOnGroundProperly(obj)
+					if data2.current.model == 'p_ld_stinger_s' then
+						FreezeEntityPosition(obj, true)
+						local spikeCoordinates = GetEntityCoords(obj)
+						local spikeHeading = GetEntityHeading(obj)
+						TriggerServerEvent('esx_policejob:setSpikestripsLocation', spikeCoordinates, spikeHeading)
+					end
+					TriggerServerEvent('esx_policejob:addSpawnedObjectToArray', ObjToNet(obj))
 				end)
 			end, function(data2, menu2)
 				menu2.close()
@@ -608,7 +623,10 @@ AddEventHandler('esx:setJob', function(job)
 	if job.name == 'police' then
 		Citizen.Wait(1000)
 		TriggerServerEvent('esx_policejob:forceBlip')
+	else
+		RemoveBlipForSpikes()
 	end
+	SetBlipForSpikes()
 end)
 
 RegisterNetEvent('esx_phone:loaded')
@@ -671,19 +689,6 @@ AddEventHandler('esx_policejob:hasEnteredEntityZone', function(entity)
 		CurrentAction     = 'remove_entity'
 		CurrentActionMsg  = _U('remove_prop')
 		CurrentActionData = {entity = entity}
-	end
-
-	if GetEntityModel(entity) == GetHashKey('p_ld_stinger_s') then
-		local playerPed = PlayerPedId()
-		local coords    = GetEntityCoords(playerPed)
-
-		if IsPedInAnyVehicle(playerPed, false) then
-			local vehicle = GetVehiclePedIsIn(playerPed)
-
-			for i=0, 7, 1 do
-				SetVehicleTyreBurst(vehicle, i, true, 1000)
-			end
-		end
 	end
 end)
 
@@ -762,11 +767,11 @@ AddEventHandler('esx_policejob:drag', function(copId)
 	end
 end)
 
-Citizen.CreateThread(function()
+CreateThread(function()
 	local wasDragged
 
 	while true do
-		Citizen.Wait(0)
+		Wait(0)
 		local playerPed = PlayerPedId()
 
 		if isHandcuffed and dragStatus.isDragged then
@@ -777,7 +782,7 @@ Citizen.CreateThread(function()
 					AttachEntityToEntity(playerPed, targetPed, 11816, 0.54, 0.54, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
 					wasDragged = true
 				else
-					Citizen.Wait(1000)
+					Wait(1000)
 				end
 			else
 				wasDragged = false
@@ -788,7 +793,7 @@ Citizen.CreateThread(function()
 			wasDragged = false
 			DetachEntity(playerPed, true, false)
 		else
-			Citizen.Wait(500)
+			Wait(1000)
 		end
 	end
 end)
@@ -828,9 +833,9 @@ AddEventHandler('esx_policejob:OutVehicle', function()
 end)
 
 -- Handcuff
-Citizen.CreateThread(function()
+CreateThread(function()
 	while true do
-		Citizen.Wait(0)
+		Wait(0)
 		local playerPed = PlayerPedId()
 
 		if isHandcuffed then
@@ -883,13 +888,13 @@ Citizen.CreateThread(function()
 				end)
 			end
 		else
-			Citizen.Wait(500)
+			Wait(1000)
 		end
 	end
 end)
 
 -- Create blips
-Citizen.CreateThread(function()
+CreateThread(function()
 	for k,v in pairs(Config.PoliceStations) do
 		local blip = AddBlipForCoord(v.Blip.Coords)
 
@@ -906,9 +911,9 @@ Citizen.CreateThread(function()
 end)
 
 -- Draw markers and more
-Citizen.CreateThread(function()
+CreateThread(function()
 	while true do
-		Citizen.Wait(0)
+		Wait(0)
 
 		if ESX.PlayerData.job and ESX.PlayerData.job.name == 'police' then
 			local playerPed = PlayerPedId()
@@ -1008,16 +1013,16 @@ Citizen.CreateThread(function()
 			end
 
 			if letSleep then
-				Citizen.Wait(500)
+				Wait(500)
 			end
 		else
-			Citizen.Wait(500)
+			Wait(1000)
 		end
 	end
 end)
 
 -- Enter / Exit entity zone events
-Citizen.CreateThread(function()
+CreateThread(function()
 	local trackedEntities = {
 		'prop_roadcone02a',
 		'prop_barrier_work05',
@@ -1027,7 +1032,7 @@ Citizen.CreateThread(function()
 	}
 
 	while true do
-		Citizen.Wait(500)
+		Wait(2000)
 
 		local playerPed = PlayerPedId()
 		local playerCoords = GetEntityCoords(playerPed)
@@ -1064,9 +1069,9 @@ Citizen.CreateThread(function()
 end)
 
 -- Key Controls
-Citizen.CreateThread(function()
+CreateThread(function()
 	while true do
-		Citizen.Wait(0)
+		Wait(0)
 
 		if CurrentAction then
 			ESX.ShowHelpNotification(CurrentActionMsg)
@@ -1110,8 +1115,12 @@ Citizen.CreateThread(function()
 						CurrentActionMsg  = _U('open_bossmenu')
 						CurrentActionData = {}
 					end, { wash = false }) -- disable washing money
-				elseif CurrentAction == 'remove_entity' then
-					DeleteEntity(CurrentActionData.entity)
+				elseif CurrentAction == 'remove_entity' then				
+					if GetEntityModel(CurrentActionData.entity) == GetHashKey('p_ld_stinger_s') then
+						local spikeCoordinates = GetEntityCoords(CurrentActionData.entity)
+						TriggerServerEvent('esx_policejob:removeSpikestripsLocation', spikeCoordinates, CurrentActionData.entity)
+					end
+					ESX.Onesync.DeleteObject(CurrentActionData.entity)							
 				end
 
 				CurrentAction = nil
@@ -1218,6 +1227,10 @@ AddEventHandler('onResourceStop', function(resource)
 		if Config.EnableHandcuffTimer and handcuffTimer.active then
 			ESX.ClearTimeout(handcuffTimer.task)
 		end
+		
+		ESX.UI.Menu.CloseAll()
+		
+		DeleteAllSpikeZones()
 	end
 end)
 
@@ -1250,4 +1263,121 @@ if ESX.PlayerLoaded and ESX.PlayerData.job == 'police' then
 	SetTimeout(1000, function()
 		TriggerServerEvent('esx_policejob:forceBlip')
 	end)
+end
+
+RegisterNetEvent('esx_policejob:setSpikestripsLocation')
+AddEventHandler('esx_policejob:setSpikestripsLocation', function(spikeCoordinates, spikeHeading)
+	SetSpikestripsLocation(spikeCoordinates, spikeHeading)
+end)
+
+function SetSpikestripsLocation(spikeCoordinates, spikeHeading)
+	local spike = BoxZone:Create(spikeCoordinates, 4.0, 1.0, {
+		name = spikeCoordinates,
+		heading = spikeHeading,
+		debugPoly = false,
+		minZ = spikeCoordinates["z"] - 1.0,
+		maxZ = spikeCoordinates["z"] + 5.0
+	})
+	
+	spike:onPlayerInOut(function(isPointInside, point)
+		local playerPed = PlayerPedId()
+		if IsPedInAnyVehicle(playerPed, false) then	
+			local vehicle = GetVehiclePedIsIn(playerPed)
+			for i = 0, 7, 1 do
+				if not IsVehicleTyreBurst(vehicle, i, true) then
+					SetVehicleTyreBurst(vehicle, i, true, 1000)
+				end
+			end
+		end
+	end, 10)
+	table.insert(spikestripsLocations, {Coords = spikeCoordinates, Zone = spike, BlipSet = false})
+	SetBlipForSpikes()
+end
+
+function SetBlipForSpikes()
+	if Config.SpikeStripBlip.ShowBlip == true then
+		if ESX.PlayerData.job and Config.SpikeStripBlip.AuthorizedJobsToSeeSpikesBlip[ESX.PlayerData.job.name] then
+			for index, element in pairs(spikestripsLocations) do
+				if element.BlipSet == false then
+					local blip = AddBlipForCoord(element.Coords)
+					SetBlipSprite(blip, Config.SpikeStripBlip.Blip.Sprite)
+					SetBlipDisplay(blip, Config.SpikeStripBlip.Blip.Display)
+					SetBlipScale(blip, Config.SpikeStripBlip.Blip.Scale)
+					SetBlipColour(blip, Config.SpikeStripBlip.Blip.Colour)
+					SetBlipAsShortRange(blip, true)
+					BeginTextCommandSetBlipName('STRING')
+					AddTextComponentSubstringPlayerName('Spikestrips')
+					EndTextCommandSetBlipName(blip)
+					
+					table.insert(spikestripsBlips, {Coords = element.Coords, Blip = blip, Shown = true})
+					
+					element.BlipSet = true
+				end
+			end
+		end
+	end
+end
+
+RegisterNetEvent('esx_policejob:removeSpikestripsLocation')
+AddEventHandler('esx_policejob:removeSpikestripsLocation', function(spikeCoordinates, spikeObject)
+	RemoveSpikestripsLocation(spikeCoordinates, spikeObject)
+end)
+
+function RemoveSpikestripsLocation(spikeCoordinates, spikeObject)
+	if not spikeCoordinates or spikeCoordinates == nil or spikeCoordinates == "" then --Remove All Zones/Locations
+		for index, element in pairs(spikestripsLocations) do			
+			element.Zone:destroy()
+			RemoveBlipForSpikes(element.Coords)	
+		end
+		spikestripsLocations = {}
+	else --Remove A Specific Zone/Location
+		for index, element in pairs(spikestripsLocations) do
+			if element.Coords == spikeCoordinates then
+				element.Zone:destroy()
+				table.remove(spikestripsLocations, index)			
+				RemoveBlipForSpikes(spikeCoordinates)
+				break
+			end
+		end
+	end
+end
+
+function RemoveBlipForSpikes(spikeCoordinates)
+	if not spikeCoordinates or spikeCoordinates == nil or spikeCoordinates == "" then --Remove All Blips
+		if Config.SpikeStripBlip.ShowBlip == true then
+			for index, element in pairs(spikestripsBlips) do
+				if element.Shown == true then
+					RemoveBlip(element.Blip)
+					element.Shown = false
+					for index2, element2 in pairs(spikestripsLocations) do
+						if element2.Coords == element.Coords then
+							element2.BlipSet = false
+							break
+						end
+					end
+				end
+			end
+			spikestripsBlips = {}
+		end
+	else --Remove A Specific Blip
+		if Config.SpikeStripBlip.ShowBlip == true then
+			for index, element in pairs(spikestripsBlips) do
+				if element.Shown == true then
+					RemoveBlip(element.Blip)
+					element.Shown = false
+					for index2, element2 in pairs(spikestripsLocations) do
+						if element2.Coords == element.Coords then
+							element2.BlipSet = false
+							break
+						end
+					end
+					break
+				end
+			end
+		end
+	end
+end
+
+function DeleteAllSpikeZones()
+	RemoveSpikestripsLocation()
 end

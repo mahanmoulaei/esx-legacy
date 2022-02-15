@@ -29,6 +29,8 @@ server_scripts {
 
 client_scripts {
 	'@es_extended/locale.lua',
+	'@PolyZone/client.lua',
+    '@PolyZone/BoxZone.lua',
 	'locales/br.lua',
 	'locales/de.lua',
 	'locales/en.lua',

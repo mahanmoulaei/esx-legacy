@@ -1,3 +1,15 @@
+local allSpawnedObjects, spikestripsLocations = {}, {}
+
+-- Police stash
+local stash = {
+	id = 'society_police',
+	label = 'Police Stash',
+	slots = 1000,
+	weight = 10000000,
+	owner = false,
+	jobs = 'police'
+}
+
 if Config.EnableESXService then
 	if Config.MaxInService ~= -1 then
 		TriggerEvent('esx_service:activateService', 'police', Config.MaxInService)
@@ -215,5 +227,54 @@ end)
 AddEventHandler('onResourceStop', function(resource)
 	if resource == GetCurrentResourceName() then
 		TriggerEvent('esx_phone:removeNumber', 'police')
+		DeleteAllSpawnedObjects()
 	end
 end)
+
+RegisterNetEvent('esx_policejob:setSpikestripsLocation')
+AddEventHandler('esx_policejob:setSpikestripsLocation', function(spikeCoordinates, spikeHeading)
+	table.insert(spikestripsLocations, {Coords = spikeCoordinates, Heading = spikeHeading})
+	TriggerClientEvent('esx_policejob:setSpikestripsLocation', -1, spikeCoordinates, spikeHeading)
+end)
+
+RegisterNetEvent('esx_policejob:removeSpikestripsLocation')
+AddEventHandler('esx_policejob:removeSpikestripsLocation', function(spikeCoordinates, spikeObject)
+	for index, element in pairs(spikestripsLocations) do
+		if #(element.Coords - spikeCoordinates) <= 0.5 then
+			table.remove(spikestripsLocations, index)
+			TriggerClientEvent('esx_policejob:removeSpikestripsLocation', -1, element.Coords, spikeObject)
+			break
+		end
+	end
+end)
+
+ESX.RegisterServerCallback('esx_policejob:getSpikestripsLocations', function(source, cb)
+	cb(spikestripsLocations)
+end)
+
+AddEventHandler('onServerResourceStart', function(resourceName)
+	if resourceName == 'ox_inventory' or resourceName == GetCurrentResourceName() then
+		exports.ox_inventory:RegisterStash(stash.id, stash.label, stash.slots, stash.weight, stash.owner, stash.jobs)
+	end
+end)
+
+RegisterNetEvent('esx_policejob:addSpawnedObjectToArray')
+AddEventHandler('esx_policejob:addSpawnedObjectToArray', function(netID)
+	table.insert(allSpawnedObjects, NetworkGetEntityFromNetworkId(netID))
+end)
+
+function DeleteAllSpawnedObjects()
+	for k, v in pairs(allSpawnedObjects) do
+		ESX.OneSync.DeleteEntity(v)
+	end
+	allSpawnedObjects = {}
+
+	TriggerClientEvent('esx_policejob:removeSpikestripsLocation', -1)
+	spikestripsLocations = {}
+	
+end
+
+ESX.RegisterCommand('deleteallpoliceobjects', 'admin', function(xPlayer, args, showError)
+	DeleteAllSpawnedObjects()
+end, false, {help = 'Delete All Spawned Objects By Police Officers', validate = false})
+

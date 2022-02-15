@@ -284,3 +284,20 @@ Config.Uniforms = {
 		}
 	}
 }
+
+Config.SpikeStripBlip = {
+	ShowBlip = true,
+	
+	Blip = {
+		Sprite  = 677,
+		Display = 4,
+		Scale   = 0.5,
+		Colour  = 29
+	},
+	
+	AuthorizedJobsToSeeSpikesBlip = {
+		["police"] = "police",
+		["ambulance"] = "ambulance",
+		["sheriff"] = "sheriff"
+	}
+}
